@@ -13,8 +13,10 @@ This method of providing SFTP access depends on using an LDAP directory for auth
 How the Python-Fuse process accesses MyTardis
 ---------------------------------------------
 There are two different ways in which mytardis-sftp accesses MyTardis:
+
 1. Using MyTardis's TastyPie RESTful API
 2. Using Django (with some "sudo -u mytardis" trickery)
+
 The API was the preferred method in early discussions with stakeholders, however it is not clear that we can get reasonable performance out of the API for serving up files via SFTP from a virtual FUSE filesystem.  The problem is that SFTP clients expect large files to begin downloading immediately (in small chunks), so they can update their progress dialogs.  The API doesn't have an efficient way to serve up a series of small chunks, and if the Python-Fuse process waits for the entire datafile to be served up by the API before making it available to the SFTP server, then the SFTP client can get confused and think that the connection to the SFTP server has stopped responding. 
 
 The other method is to use Django to access the MyTardis data.  For example, the script af\_unix\_socket\_server is designed to be run with "sudo -u mytardis", so that it can access the MyTardis file store directly, open a data file, and hand the file descriptor over to the unprivileged mytardis\_mount process.  The af\_unix\_socket\_server script checks the SUDO\_USER environment variable to determine the POSIX username calling the script, which is assumed to be the same as the MyTardis username.  To be more accurate, a MyTardis user can link multiple authentication methods e.g. username "jsmith" (using LDAP) and username "johns" (using localdb).  So if the af\_unix\_socket\_server receives SUDO\_USER=jsmith, it looks up username="jsmith" in MyTardis's UserAuthentication model with auth\_method="cvl\_ldap".  Of course the auth\_method should be easily configurable, but it is hard-coded for now.
