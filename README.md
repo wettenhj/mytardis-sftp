@@ -1,6 +1,6 @@
 mytardis-sftp
 =============
-The scripts in this repository form an early prototype for making MyTardis data available via SFTP (and related methods such as RSYNC over SSH), using Python-Fuse.  These scripts currently sit in /usr/local/bin/ on my MyTardis server.  The main script is mytardis\_mount, which uses Python-Fuse to set up a virtual filesystem.  The mytardis\_sftpd script is an easy way to call mytardis\_mount - it automatically chooses a mountpoint - ~/MyTardis, calls mytardis\_mount, and waits for the FUSE filesystem to be ready, returning 0 on success, and 1 if it's not ready after 5 seconds.  
+The scripts in this repository form an early prototype for making MyTardis data available via SFTP (and related methods such as RSYNC over SSH), using Python-Fuse.  These scripts currently sit in /usr/local/bin/ on my MyTardis server.  The main script is mytardis\_mount, which uses Python-Fuse to set up a virtual filesystem.  The mytardis\_sftpd script is an easy way to call mytardis\_mount - it automatically chooses a mountpoint, ~/MyTardis, calls mytardis\_mount, and waits for the FUSE filesystem to be ready, returning 0 on success, and 1 if it's not ready after 5 seconds.  
 
 Launching mytardis-sftp (a Python-Fuse process).
 -----------------------------------------------
