@@ -1,0 +1,28 @@
+#!/usr/bin/python
+
+# Filename: get_mytardis_file_store_path
+# Author: James Wettenhall <james.wettenhall@monash.edu>
+# Location: /usr/local/bin/ on MyTardis server
+# Description: This script is part of the CVL MyTardis SSHFS mounting prototype.
+
+import sys
+import os
+import getpass
+
+# This script should be run as user 'mytardis' via sudo.  All users have permission
+# to run it as sudo without a password, thanks to this line in /etc/sudoers:
+# ALL     ALL=NOPASSWD: /usr/local/bin/get_owned_and_shared_mytardis_experiment_ids
+
+if getpass.getuser()!="mytardis" or "SUDO_USER" not in os.environ:
+    print "Usage: sudo -u mytardis /usr/local/bin/get_mytardis_file_store_path"
+    os._exit(1)
+
+sys.path.append("/opt/mytardis/current/")
+for egg in os.listdir("/opt/mytardis/current/eggs/"):
+    sys.path.append("/opt/mytardis/current/eggs/" + egg)
+from django.core.management import setup_environ
+from tardis import settings
+setup_environ(settings)
+
+print settings.FILE_STORE_PATH
+
