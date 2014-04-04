@@ -53,7 +53,9 @@ if not os.path.exists(fuseMountDir):
 
 myTardisUsername = getpass.getuser()
 proc = subprocess.Popen(["sudo","-u","mytardis","my_api_key"], stdout=subprocess.PIPE)
-myTardisApiKey = proc.stdout.read().strip()
+myApiKeyStdout = proc.stdout.read().strip()
+myTardisUsername = myApiKeyStdout.split(' ')[1].split(':')[0]
+myTardisApiKey = myApiKeyStdout.split(':')[-1]
 
 proc = subprocess.Popen(["id","-u"], stdout=subprocess.PIPE)
 uid = proc.stdout.read().strip()

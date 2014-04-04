@@ -32,6 +32,6 @@ userAuth = UserAuthentication.objects.get(username=os.environ['SUDO_USER'], \
 myTardisUser = userAuth.userProfile.user
 
 key = ApiKey.objects.get(user__username=myTardisUser.username)
-print str(key.key)
+print "ApiKey " + myTardisUser.username + ":" + str(key.key)
 
 
