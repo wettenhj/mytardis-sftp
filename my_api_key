@@ -24,8 +24,14 @@ from django.core.management import setup_environ
 from tardis import settings
 setup_environ(settings)
 
+from tardis.tardis_portal.models import UserAuthentication
 from tastypie.models import ApiKey
-key = ApiKey.objects.get(user__username=os.environ['SUDO_USER'])
+
+userAuth = UserAuthentication.objects.get(username=os.environ['SUDO_USER'], \
+    authenticationMethod='cvl_ldap')
+myTardisUser = userAuth.userProfile.user
+
+key = ApiKey.objects.get(user__username=myTardisUser.username)
 print str(key.key)
 
 
