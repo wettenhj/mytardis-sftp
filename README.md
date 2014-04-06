@@ -28,5 +28,3 @@ ALL     ALL=(mytardis:mytardis) NOPASSWD: /usr/local/bin/my_api_key, /usr/local/
 ```
 
 If you're wondering why we have an arbitrary looking "get\_dataset\_datafiles" script (which as the name suggests, queries MyTardis for a list of datafiles belonging to a given dataset), it is because most queries like this are currently done with the TastyPie RESTful API.  But just recently, I have been testing whether it is actually faster to do these queries using the Django models instead.
-
-*WARNING: THE "sudo -u mytardis" METHOD OF ALLOWING UNPRIVILEGED USERS TO ACCESS PARTS OF MyTardis IS UNCONVENTIONAL AND MAY HAVE UNINTENDED CONSEQUENCES, e.g. a huge /var/log/auth.log FILE.  THIS METHOD IS BEING TRIALED, BUT IT MAY PROVE TO BE UNSUITABLE FOR SOME (OR ALL) MyTardis DEPLOYMENTS.*
