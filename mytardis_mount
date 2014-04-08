@@ -332,7 +332,7 @@ class MyFS(fuse.Fuse):
             else:
                 logger.debug("myTardisDatafileDescriptor.fileDescriptor is None.")
 
-            fileObject = os.fdopen(fileDescriptor)
+            fileObject = os.fdopen(fileDescriptor, 'rb')
             DATAFILE_FILE_OBJECTS[datasetId][subdirectory][filename] = fileObject
             # Schedule file to be closed in 30 seconds, unless it is used before
             # then, in which case the timer will be reset.
