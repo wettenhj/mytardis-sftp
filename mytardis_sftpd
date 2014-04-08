@@ -1,6 +1,6 @@
 #!/bin/bash
 
-/usr/local/bin/mytardis_mount $HOME/MyTardis -f 1>>$HOME/mytardis_sftp.log 2>>$HOME/mytardis_sftp-error.log &
+/usr/local/bin/mytardis_mount $HOME/MyTardis -f -o direct_io 1>>$HOME/mytardis_sftp.log 2>>$HOME/mytardis_sftp-error.log &
 
 COUNTER=0
 while [  $COUNTER -lt 50 ]; do
