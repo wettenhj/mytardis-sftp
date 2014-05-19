@@ -87,7 +87,8 @@ expRecordsJson = response.json()
 numExpRecordsFound = expRecordsJson['meta']['total_count']
 logger.debug(str(numExpRecordsFound) + " experiment record(s) found for user " + myTardisUsername)
 for expRecordJson in expRecordsJson['objects']:
-    expDirName = str(expRecordJson['id']) + " - " + expRecordJson['title'].encode('ascii','ignore')
+    #expDirName = str(expRecordJson['id']) + " - " + expRecordJson['title'].encode('ascii','ignore')
+    expDirName = str(expRecordJson['id']) + "-" + expRecordJson['title'].encode('ascii','ignore').replace(" ","_")
     FILES['/' + expDirName] = (0, True)
 
 def file_array_to_list(files):
@@ -168,10 +169,12 @@ class MyFS(fuse.Fuse):
         pathComponents = path.split("/",3)
         if len(pathComponents)>1 and pathComponents[1]!='':
             expDirName = pathComponents[1]
-            experimentId = expDirName.split(" ")[0]
+            #experimentId = expDirName.split(" ")[0]
+            experimentId = expDirName.split("-")[0]
         if len(pathComponents)>2 and pathComponents[2]!='':
             datasetDirName = pathComponents[2]
-            datasetId    = datasetDirName.split(" ")[0]
+            #datasetId    = datasetDirName.split(" ")[0]
+            datasetId    = datasetDirName.split("-")[0]
         if len(pathComponents)>3 and pathComponents[3]!='':
             subdirectory = pathComponents[3] # NOT USED IN THIS METHOD. SHOULD IT BE?
 
@@ -188,7 +191,8 @@ class MyFS(fuse.Fuse):
 
             # Doesn't check for deleted experiments - only adds to FILES dictionary.
             for expRecordJson in expRecordsJson['objects']:
-                expDirName = str(expRecordJson['id']) + " - " + expRecordJson['title'].encode('ascii','ignore')
+                #expDirName = str(expRecordJson['id']) + " - " + expRecordJson['title'].encode('ascii','ignore')
+                expDirName = str(expRecordJson['id']) + "-" + expRecordJson['title'].encode('ascii','ignore').replace(" ","_")
                 FILES['/' + expDirName] = (0, True)
 
         if len(pathComponents)==2 and pathComponents[1]!='':
@@ -202,7 +206,8 @@ class MyFS(fuse.Fuse):
             logger.debug(str(numDatasetRecordsFound) + " dataset record(s) found for exp ID " + experimentId)
 
             for datasetJson in datasetRecordsJson['objects']:
-                datasetDirName = str(datasetJson['id']) + " - " + datasetJson['description'].encode('ascii','ignore')
+                #datasetDirName = str(datasetJson['id']) + " - " + datasetJson['description'].encode('ascii','ignore')
+                datasetDirName = str(datasetJson['id']) + "-" + datasetJson['description'].encode('ascii','ignore').replace(" ","_")
                 FILES['/' + expDirName + '/' + datasetDirName] = (0, True)
 
         if len(pathComponents)==3 and pathComponents[1]!='':
@@ -297,8 +302,10 @@ class MyFS(fuse.Fuse):
 
         filename     = path.rsplit(os.sep)[-1]
         pathComponents = path.split(os.sep,3)
-        experimentId = pathComponents[1].split(" ")[0]
-        datasetId    = pathComponents[2].split(" ")[0]
+        #experimentId = pathComponents[1].split(" ")[0]
+        experimentId = pathComponents[1].split("-")[0]
+        #datasetId    = pathComponents[2].split(" ")[0]
+        datasetId    = pathComponents[2].split("-")[0]
         if os.sep in pathComponents[3]:
             subdirectory = pathComponents[3].rsplit(os.sep,1)[0]
         else:
