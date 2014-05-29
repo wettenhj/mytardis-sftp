@@ -1,7 +1,12 @@
 from setuptools import setup
+import sys
+import os
+import shutil
+
+import mytardisfs
 
 setup(name='mytardisfs',
-      version='0.1',
+      version=mytardisfs.__version__,
       description='FUSE filesystem for MyTardis',
       url='http://github.com/monash-merc/mytardisfs',
       author='James Wettenhall',
@@ -17,5 +22,14 @@ setup(name='mytardisfs',
               "mytardisftpd = mytardisfs.mytardisftpd:run",
           ],
       },
-      install_requires = ['fuse-python','python-dateutil','requests','fdsend'],
+      install_requires=['fuse-python', 'python-dateutil', 'requests',
+                        'fdsend'],
       zip_safe=False)
+
+if 'install' in sys.argv:
+    man_path = '/usr/share/man/man1/'
+    if os.path.exists(man_path):
+        print("Installing man page for mytardisfs...")
+        man_page = "doc/mytardisfs.1"
+        shutil.copy2(man_page, man_path)
+        os.chmod(man_path + 'mytardisfs.1', int('444', 8))
