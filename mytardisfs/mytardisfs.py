@@ -35,6 +35,13 @@
 # authentication method used to resolve the POSIX username and obtain
 # the API key.  This should probably be a command-line argument of
 # mtardisfs.
+
+# To Do: The following need to be accessible as a command-line options:
+# EXPERIMENTS_LIST_CACHE_TIME_SECONDS = 30
+# _mytardis_url = "https://mytardis.massive.org.au"
+# The latter is only used for RESTful API calls.  Currently, other code
+# in MyTardisFS requires it to run on the MyTardis server.
+
 import fuse
 import stat
 import time
@@ -50,13 +57,15 @@ import errno
 from datafiledescriptor import MyTardisDatafileDescriptor
 import dateutil.parser
 from datetime import datetime
+import getopt
+from __init__ import __version__
 
 logger = logging.getLogger(__name__)
-logger.setLevel(logging.DEBUG)
+logger.setLevel(logging.INFO)
 # We don't really want to log to STDOUT.  We assume that this script
 # will be called with STDOUT redirected to a file.
 stream_handler = logging.StreamHandler(sys.stdout)
-stream_handler.setLevel(logging.DEBUG)
+stream_handler.setLevel(logging.INFO)
 log_format_string = \
     '%(asctime)s - %(name)s - %(module)s - %(funcName)s - ' + \
     '%(lineno)d - %(levelname)s - %(message)s'
@@ -64,7 +73,127 @@ stream_handler.setFormatter(logging.Formatter(log_format_string))
 logger.addHandler(stream_handler)
 
 if len(sys.argv) < 2:
-    print "Usage: mytardisfs MOUNT_DIR [-f] [FUSE options]"
+    print "Missing mount point"
+    print "See `mytardisfs -h' for usage"
+    sys.exit(1)
+
+if sys.argv[1].startswith("-"):
+    argv = sys.argv[1:]
+else:
+    argv = sys.argv[2:]
+
+try:
+    opts, args = getopt.getopt(argv, "hvfdsl:o:",
+                               ["help", "version", "loglevel="])
+except getopt.GetoptError:
+    print "Usage: mytardisfs mountpoint [options]"
+    sys.exit(1)
+
+for opt, arg in opts:
+    if opt == '-h' or opt == '--help':
+        print ""
+        print "Usage: mytardisfs mountpoint [options]"
+        print "  e.g. mytardisfs ~/MyTardis -f -o direct_io"
+        print """
+General options:
+    -h   --help            print help
+    -v   --version         print version
+
+MyTardisFS options:
+    -l   --loglevel=LEVEL  set log level to ERROR, WARNING, INFO or DEBUG
+
+FUSE options:
+    -d   -o debug          enable debug output (implies -f)
+    -f                     foreground operation
+    -s                     disable multi-threaded operation
+
+    -o allow_other         allow access to other users
+    -o allow_root          allow access to root
+    -o nonempty            allow mounts over non-empty file/dir
+    -o default_permissions enable permission checking by kernel
+    -o fsname=NAME         set filesystem name
+    -o subtype=NAME        set filesystem type
+    -o large_read          issue large read requests (2.4 only)
+    -o max_read=N          set maximum size of read requests
+
+    -o hard_remove         immediate removal (don't hide files)
+    -o use_ino             let filesystem set inode numbers
+    -o readdir_ino         try to fill in d_ino in readdir
+    -o direct_io           use direct I/O
+    -o kernel_cache        cache files in kernel
+    -o [no]auto_cache      enable caching based on modification times (off)
+    -o umask=M             set file permissions (octal)
+    -o uid=N               set file owner
+    -o gid=N               set file group
+    -o entry_timeout=T     cache timeout for names (1.0s)
+    -o negative_timeout=T  cache timeout for deleted names (0.0s)
+    -o attr_timeout=T      cache timeout for attributes (1.0s)
+    -o ac_attr_timeout=T   auto cache timeout for attributes (attr_timeout)
+    -o intr                allow requests to be interrupted
+    -o intr_signal=NUM     signal to send on interrupt (10)
+    -o modules=M1[:M2...]  names of modules to push onto filesystem stack
+
+    -o max_write=N         set maximum size of write requests
+    -o max_readahead=N     set maximum readahead
+    -o async_read          perform reads asynchronously (default)
+    -o sync_read           perform reads synchronously
+    -o atomic_o_trunc      enable atomic open+truncate support
+    -o big_writes          enable larger than 4kB writes
+    -o no_remote_lock      disable remote file locking
+"""
+
+        sys.exit()
+    if opt == '-v' or opt == '--version':
+        print ""
+        print "MyTardisFS version: " + __version__
+        print "fuse-python version: " + fuse.__version__
+        print "FUSE version: " + \
+            subprocess.check_output('ldconfig -v 2>/dev/null | grep fuse',
+                                    shell=True)
+        sys.exit()
+    if opt == '-l' or opt == '--loglevel':
+        # Remove this option from sys.argv,
+        # because it is not a valid FUSE
+        # option, and all command-line options
+        # will be passed to FUSE.
+        try:
+            sys.argv.remove(opt + "=" + arg)
+        except:
+            pass
+        try:
+            sys.argv.remove(opt + arg)
+        except:
+            pass
+        try:
+            sys.argv.remove(opt + " " + arg)
+        except:
+            pass
+        if arg == 'ERROR':
+            logger.setLevel(logging.ERROR)
+            stream_handler.setLevel(logging.ERROR)
+        elif arg == 'WARNING':
+            logger.setLevel(logging.WARNING)
+            stream_handler.setLevel(logging.WARNING)
+        elif arg == 'INFO':
+            logger.setLevel(logging.INFO)
+            stream_handler.setLevel(logging.INFO)
+        elif arg == 'DEBUG':
+            logger.setLevel(logging.DEBUG)
+            stream_handler.setLevel(logging.DEBUG)
+            # FUSE needs to run in foreground mode (-f) to allow
+            # debug-level logging.  You can still use an ampersand
+            # at the end of the command to put it in the background.
+            # The logs can be redirected to files, as done in mytardisftpd
+            if '-f' not in sys.argv:
+                sys.argv.append('-f')
+        else:
+            print "--loglevel should be ERROR, WARNING, INFO or DEBUG."
+            sys.exit(1)
+
+# Checking again, after possible removing "--loglevel"
+if len(sys.argv) < 2:
+    print "Missing mount point"
+    print "See `mytardisfs -h' for usage"
     sys.exit(1)
 
 fuse_mount_dir = os.path.expanduser(sys.argv[1])
@@ -94,8 +223,6 @@ EXPERIMENTS_LIST_CACHE_TIME_SECONDS = 30
 LAST_QUERY_TIME = dict()
 LAST_QUERY_TIME['experiments'] = datetime.fromtimestamp(0)
 
-DEBUG = False
-
 fuse.fuse_python_api = (0, 2)
 
 # Use same timestamp for all files in initial prototype
@@ -114,12 +241,12 @@ DATAFILE_FILE_OBJECTS = dict()
 DATAFILE_CLOSE_TIMERS = dict()
 
 url = _mytardis_url + "/api/v1/experiment/?format=json&limit=0"
-logger.debug(url)
+logger.info(url)
 response = requests.get(url=url, headers=_headers)
 exp_records_json = response.json()
 num_exp_records_found = exp_records_json['meta']['total_count']
-logger.debug(str(num_exp_records_found) +
-             " experiment record(s) found for user " + mytardis_username)
+logger.info(str(num_exp_records_found) +
+            " experiment record(s) found for user " + mytardis_username)
 if int(num_exp_records_found) > 0:
     max_exp_created_time = \
         dateutil.parser.parse(exp_records_json['objects'][0]['created_time'])
@@ -134,7 +261,7 @@ for exp_record_json in exp_records_json['objects']:
          int(time.mktime(exp_created_time.timetuple())),
          int(time.mktime(exp_created_time.timetuple())),
          int(time.mktime(exp_created_time.timetuple())))
-    # logger.debug("FILES['/'" + exp_dir_name + "] = " +
+    # logger.info("FILES['/'" + exp_dir_name + "] = " +
     #     str(FILES['/' + exp_dir_name]))
 
 # Add 2 to nlink for "." and ".."
@@ -143,7 +270,7 @@ FILES['/'] = (0, True,
               int(time.mktime(max_exp_created_time.timetuple())),
               int(time.mktime(max_exp_created_time.timetuple())),
               int(num_exp_records_found)+2)
-# logger.debug("FILES['/'] = " + str(FILES['/']))
+# logger.info("FILES['/'] = " + str(FILES['/']))
 
 LAST_QUERY_TIME['experiments'] = datetime.now()
 
@@ -205,11 +332,10 @@ class MyFS(fuse.Fuse):
         path = path.rstrip("*")
         if path != "/":
             path = path.rstrip("/")
-        if DEBUG:
-            logger.debug("^ getattr: path = " + path)
+        logger.debug("^ getattr: path = " + path)
 
         # if path == "." or path == "..":
-            # return MyStat(True, _directory_size)
+        #     return MyStat(True, _directory_size)
         if path == "/":
             if len(FILES[path]) >= 6:
                 return MyStat(True, _directory_size,
@@ -229,13 +355,11 @@ class MyFS(fuse.Fuse):
                 return -errno.ENOENT
 
     def getdir(self, path):
-        if DEBUG:
-            logger.debug('getdir called:', path)
+        logger.debug('getdir called:', path)
         return file_array_to_list(FILES)
 
     def readdir(self, path, offset):
-        if DEBUG:
-            logger.debug("^ readdir: path = \"" + path + "\"")
+        logger.debug("^ readdir: path = \"" + path + "\"")
 
         for e in '.', '..':
             yield fuse.Direntry(e)
@@ -259,17 +383,17 @@ class MyFS(fuse.Fuse):
             if time_since_last_experiment_query.seconds > \
                     EXPERIMENTS_LIST_CACHE_TIME_SECONDS:
                 url = _mytardis_url + "/api/v1/experiment/?format=json&limit=0"
-                logger.debug(url)
+                logger.info(url)
                 response = requests.get(url=url, headers=_headers)
                 if response.status_code < 200 or response.status_code >= 300:
-                    logger.debug(url)
-                    logger.debug("Response status_code = " +
-                                 str(response.status_code))
+                    logger.info(url)
+                    logger.info("Response status_code = " +
+                                str(response.status_code))
                 exp_records_json = response.json()
                 num_exp_records_found = exp_records_json['meta']['total_count']
-                logger.debug(str(num_exp_records_found) +
-                             " experiment record(s) found for user " +
-                             mytardis_username)
+                logger.info(str(num_exp_records_found) +
+                            " experiment record(s) found for user " +
+                            mytardis_username)
 
                 # Doesn't check for deleted experiments,
                 # only adds to FILES dictionary.
@@ -289,7 +413,7 @@ class MyFS(fuse.Fuse):
                          int(time.mktime(exp_created_time.timetuple())),
                          int(time.mktime(exp_created_time.timetuple())),
                          int(time.mktime(exp_created_time.timetuple())))
-                    # logger.debug("FILES['/" + exp_dir_name + "'] \
+                    # logger.info("FILES['/" + exp_dir_name + "'] \
                     #    = (0, True)")
                 FILES['/'] = \
                     (0, True,
@@ -304,17 +428,17 @@ class MyFS(fuse.Fuse):
             url = _mytardis_url + \
                 "/api/v1/dataset/?format=json&limit=0&experiments__id=" + \
                 experiment_id
-            logger.debug(url)
+            logger.info(url)
             response = requests.get(url=url, headers=_headers)
             if response.status_code < 200 or response.status_code >= 300:
-                logger.debug("Response status_code = " +
-                             str(response.status_code))
+                logger.info("Response status_code = " +
+                            str(response.status_code))
             dataset_records_json = response.json()
             num_dataset_records_found = \
                 dataset_records_json['meta']['total_count']
-            logger.debug(str(num_dataset_records_found) +
-                         " dataset record(s) found for exp ID " +
-                         experiment_id)
+            logger.info(str(num_dataset_records_found) +
+                        " dataset record(s) found for exp ID " +
+                        experiment_id)
 
             for dataset_json in dataset_records_json['objects']:
                 dataset_dir_name = str(dataset_json['id']) + "-" + \
@@ -335,7 +459,7 @@ class MyFS(fuse.Fuse):
                 url = _mytardis_url + \
                     "/api/v1/dataset_file/?format=json&limit=0&" + \
                     "dataset__id=" + str(dataset_id)
-                logger.debug(url)
+                logger.info(url)
                 response = requests.get(url=url, headers=_headers)
                 datafile_records_json = response.json()
                 num_datafile_records_found = \
@@ -344,28 +468,28 @@ class MyFS(fuse.Fuse):
                 cmd = ['sudo', '-u', 'mytardis',
                        '/usr/local/bin/_datasetdatafiles',
                        experiment_id, dataset_id]
-                logger.debug(str(cmd))
+                logger.info(str(cmd))
                 proc = subprocess.Popen(cmd, stdout=subprocess.PIPE,
                                         stderr=subprocess.PIPE)
                 stdout, stderr = proc.communicate()
                 if stderr is not None and stderr != "":
-                    logger.debug(stderr)
+                    logger.info(stderr)
 
                 datafile_dicts_string = stdout.strip()
-                # logger.debug("datafile_dicts_string: " +
+                # logger.info("datafile_dicts_string: " +
                 #     datafile_dicts_string)
                 datafile_dicts = ast.literal_eval(datafile_dicts_string)
                 num_datafile_records_found = len(datafile_dicts)
 
-            logger.debug(str(num_datafile_records_found) +
-                         " datafile record(s) found for dataset ID " +
-                         str(dataset_id))
+            logger.info(str(num_datafile_records_found) +
+                        " datafile record(s) found for dataset ID " +
+                        str(dataset_id))
 
             if use_api:
                 datafile_dicts = datafile_records_json['objects']
 
             for datafile_dict in datafile_dicts:
-                # logger.debug(str(datafile_dict))
+                # logger.info(str(datafile_dict))
                 datafile_id = datafile_dict['id']
                 if use_api:
                     datafile_directory = datafile_dict['directory'] \
@@ -433,8 +557,7 @@ class MyFS(fuse.Fuse):
 
     def read(self, path, leng, offset):
 
-        if DEBUG:
-            logger.debug("read(...) path = " + path)
+        logger.debug("read(...) path = " + path)
 
         filename = path.rsplit(os.sep)[-1]
         pathComponents = path.split(os.sep, 3)
@@ -446,15 +569,13 @@ class MyFS(fuse.Fuse):
             subdirectory = pathComponents[3].rsplit(os.sep, 1)[0]
         else:
             subdirectory = ""
-        if DEBUG:
-            logger.debug("read request for %s with length %d and offset %d" %
-                         (filename, leng, offset))
+        logger.debug("read request for %s with length %d and offset %d" %
+                     (filename, leng, offset))
 
         datafile_id = DATAFILE_IDS[dataset_id][subdirectory][filename]
 
         datafile_size = DATAFILE_SIZES[dataset_id][subdirectory][filename]
-        if DEBUG:
-            logger.debug("datafile_size is " + str(datafile_size))
+        logger.debug("datafile_size is " + str(datafile_size))
 
         if DATAFILE_FILE_OBJECTS[dataset_id][subdirectory][filename] \
                 is not None:
@@ -477,14 +598,13 @@ class MyFS(fuse.Fuse):
             mytardis_datafile_descriptor = MyTardisDatafileDescriptor. \
                 get_file_descriptor(experiment_id, datafile_id)
             file_descriptor = None
-            if DEBUG:
-                logger.debug("Message: " +
-                             mytardis_datafile_descriptor.message)
+            logger.debug("Message: " +
+                         mytardis_datafile_descriptor.message)
             if mytardis_datafile_descriptor.file_descriptor is not None:
                 file_descriptor = mytardis_datafile_descriptor.file_descriptor
             else:
-                logger.debug("mytardis_datafile_descriptor.file_descriptor "
-                             "is None.")
+                logger.info("mytardis_datafile_descriptor.file_descriptor "
+                            "is None.")
 
             file_object = os.fdopen(file_descriptor)
             DATAFILE_FILE_OBJECTS[dataset_id][subdirectory][filename] = \
@@ -512,6 +632,7 @@ if __name__ == '__main__':
     fs = MyFS()
     fs.parse(errex=1)
     fs.main()
+
 
 def run():
     fs = MyFS()
