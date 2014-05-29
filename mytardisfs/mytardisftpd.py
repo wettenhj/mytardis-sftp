@@ -25,6 +25,14 @@ def run():
         stdout, stderr = proc.communicate()
         filesystem_type = stdout.strip()
         if filesystem_type == "fuseblk":
+            # Avoid STDOUT if run from /usr/local/lib/openssh/sftp-server
+            if sys.stdout.isatty():
+                print ""
+                print "Your MyTardis data has been mounted at ~/MyTardis/"
+                print "You can unmount MyTardis by running:"
+                print ""
+                print "    fusermount -uz ~/MyTardis"
+                print ""
             sys.exit(0)
         time.sleep(0.1)
         count = count + 1
