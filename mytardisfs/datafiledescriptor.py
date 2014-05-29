@@ -6,52 +6,59 @@ import subprocess
 import time
 import tempfile
 
+
 class MyTardisDatafileDescriptor:
 
-    def __init__(self, message=None, fileDescriptor=None):
+    def __init__(self, message=None, file_descriptor=None):
         self.message = message
-        self.fileDescriptor = fileDescriptor
+        self.file_descriptor = file_descriptor
 
     @staticmethod
-    def get_file_descriptor(experimentId, datafileId):
+    def get_file_descriptor(experiment_id, datafile_id):
 
-        # Determine the absolute path of the socket for interprocess communication:
+        # Determine the absolute path of the socket
+        # for interprocess communication:
         f = tempfile.NamedTemporaryFile(delete=True)
-        socketPath = f.name
+        socket_path = f.name
         f.close()
 
-        proc = subprocess.Popen(["sudo","-u","mytardis","af_unix_socket_server", \
-                socketPath, str(experimentId), str(datafileId)], \
-                stderr=subprocess.PIPE, stdout=subprocess.PIPE)
+        proc = subprocess.Popen(["sudo", "-u", "mytardis",
+                                 "_datafiledescriptord",
+                                 socket_path, str(experiment_id),
+                                 str(datafile_id)],
+                                stderr=subprocess.PIPE, stdout=subprocess.PIPE)
 
-        while not os.path.exists(socketPath):
+        while not os.path.exists(socket_path):
             time.sleep(0.01)
 
         sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-        sock.connect(socketPath)
+        sock.connect(socket_path)
         sock.send("Request file descriptor")
-        (message, fileDescriptors) = fdsend.recvfds(sock, 128, numfds = 1)
+        (message, file_descriptors) = fdsend.recvfds(sock, 128, numfds=1)
         sock.close()
 
-        fileDescriptor = None
-        if len(fileDescriptors)>0:
-            fileDescriptor = fileDescriptors[0]
+        file_descriptor = None
+        if len(file_descriptors) > 0:
+            file_descriptor = file_descriptors[0]
 
-        return MyTardisDatafileDescriptor(message,fileDescriptor)
+        return MyTardisDatafileDescriptor(message, file_descriptor)
 
 if __name__ == "__main__":
-    experimentId = "73"
-    print "Experiment ID: " + experimentId
-    #datafileId = "1463"
-    datafileId = "6680"
-    print "Datafile ID: " + datafileId
+    experiment_id = "73"
+    print "Experiment ID: " + experiment_id
+    # datafile_id = "1463"
+    datafile_id = "6680"
+    print "Datafile ID: " + datafile_id
 
-    myTardisDatafileDescriptor = MyTardisDatafileDescriptor.get_file_descriptor(experimentId, datafileId)
-    if myTardisDatafileDescriptor.fileDescriptor is not None:
-        print "Message: " + myTardisDatafileDescriptor.message
+    mytardis_datafile_descriptor = \
+        MyTardisDatafileDescriptor.get_file_descriptor(experiment_id,
+                                                       datafile_id)
+    if mytardis_datafile_descriptor.file_descriptor is not None:
+        print "Message: " + mytardis_datafile_descriptor.message
 
-        fileDescriptor = myTardisDatafileDescriptor.fileDescriptor 
-        fileHandle = os.fdopen(fileDescriptor)
-        print "File content: " + fileHandle.read(1024) # Only show first 1024 bytes for now.
-        fileHandle.close()
+        file_descriptor = mytardis_datafile_descriptor.file_descriptor
+        file_handle = os.fdopen(file_descriptor, 'rb')
 
+        # Only show first 1024 bytes for now:
+        print "File content: " + file_handle.read(1024)
+        file_handle.close()

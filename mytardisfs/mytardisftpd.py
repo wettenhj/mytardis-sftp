@@ -1,18 +1,37 @@
-#!/bin/bash
 
-/usr/local/bin/mytardis_mount $HOME/MyTardis -f -o direct_io 1>>$HOME/mytardis_sftp.log 2>>$HOME/mytardis_sftp-error.log &
+import sys
+import os
+import subprocess
+import time
 
-COUNTER=0
-while [  $COUNTER -lt 50 ]; do
-    FILESYSTEM_TYPE=`stat -f -c '%T' $HOME/MyTardis`
-    if [ $FILESYSTEM_TYPE == 'fuseblk' ]; then
-        exit 0
-    fi
-    sleep 0.1
-    let COUNTER=COUNTER+1
-done
+def run():
+    HOME = os.getenv("HOME")
+    stdout_log_filename = os.path.join(HOME, "mytardisftpd.log")
+    stderr_log_filename = os.path.join(HOME, "mytardisftpd-error.log")
 
-echo "$HOME/MyTardis failed to mount after 5 seconds."
-exit 1
+    with open(stdout_log_filename, 'w') as out, \
+            open(stderr_log_filename, 'w') as err:
+        subprocess.Popen(["mytardisfs",
+                         os.path.join(HOME, "MyTardis"),
+                         "-f", "-o", "direct_io"],
+                        stdout=out, stderr=err)
 
+    count = 0
+    while count < 50:
+        proc = subprocess.Popen(["stat", "-f", "-c", "%T",
+                                 os.path.join(HOME, "MyTardis")],
+                                stdout=subprocess.PIPE,
+                                stderr=subprocess.STDOUT)
+        stdout, stderr = proc.communicate()
+        filesystem_type = stdout.strip()
+        if filesystem_type == "fuseblk":
+            sys.exit(0)
+        time.sleep(0.1)
+        count = count + 1
 
+    print os.path.join(HOME, "MyTardis") + " failed to mount after 5 seconds."
+    print "You could try: "
+    print "  tail $HOME/mytardisftpd-error.log"
+    print "  tail $HOME/mytardisftpd.log"
+
+    sys.exit(1)
