@@ -17,4 +17,5 @@ setup(name='mytardisfs',
               "mytardisftpd = mytardisfs.mytardisftpd:run",
           ],
       },
+      install_requires = ['fuse-python','python-dateutil','requests','fdsend'],
       zip_safe=False)
