@@ -159,15 +159,14 @@ FUSE options:
         try:
             sys.argv.remove(opt + "=" + arg)
         except:
-            pass
-        try:
-            sys.argv.remove(opt + arg)
-        except:
-            pass
-        try:
-            sys.argv.remove(opt + " " + arg)
-        except:
-            pass
+            try:
+                sys.argv.remove(opt + arg)
+            except:
+                try:
+                    sys.argv.remove(opt)
+                    sys.argv.remove(arg)
+                except:
+                    pass
         if arg == 'ERROR':
             logger.setLevel(logging.ERROR)
             stream_handler.setLevel(logging.ERROR)
