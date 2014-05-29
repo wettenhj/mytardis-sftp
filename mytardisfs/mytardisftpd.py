@@ -1,11 +1,31 @@
-
 import sys
 import os
 import subprocess
 import time
 
+
 def run():
     HOME = os.getenv("HOME")
+
+    proc = subprocess.Popen(["stat", "-f", "-c", "%T",
+                             os.path.join(HOME, "MyTardis")],
+                            stdout=subprocess.PIPE,
+                            stderr=subprocess.STDOUT)
+    stdout, stderr = proc.communicate()
+    filesystem_type = stdout.strip()
+    if filesystem_type == "fuseblk":
+        # Avoid STDOUT if run from /usr/local/lib/openssh/sftp-server
+        if sys.stdout.isatty():
+            print ""
+            print "ERROR: " + \
+                "You already have a FUSE filesystem mounted on ~/MyTardis"
+            print ""
+            print "You can unmount MyTardis by running:"
+            print ""
+            print "    fusermount -uz ~/MyTardis"
+            print ""
+        sys.exit(1)
+
     stdout_log_filename = os.path.join(HOME, "mytardisftpd.log")
     stderr_log_filename = os.path.join(HOME, "mytardisftpd-error.log")
 
@@ -14,7 +34,7 @@ def run():
         subprocess.Popen(["mytardisfs",
                          os.path.join(HOME, "MyTardis"),
                          "-f", "-o", "direct_io"],
-                        stdout=out, stderr=err)
+                         stdout=out, stderr=err)
 
     count = 0
     while count < 50:
