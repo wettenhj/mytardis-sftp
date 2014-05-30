@@ -361,16 +361,16 @@ class MyFS(fuse.Fuse):
         if path == "/":
             if len(FILES[path]) >= 6:
                 return MyStat(True, _directory_size,
-                              FILES[path][2], FILES[path][3], FILES[path][4],
-                              FILES[path][5])
+                              FILES[path][2], FILES[path][3],
+                              FILES[path][4], FILES[path][5])
             else:
                 return MyStat(True, _directory_size)
         else:
             try:
                 if len(FILES[path]) >= 6:
                     return MyStat(True, _directory_size,
-                                  FILES[path][2], FILES[path][3], FILES[path][4],
-                                  FILES[path][5])
+                                  FILES[path][2], FILES[path][3],
+                                  FILES[path][4], FILES[path][5])
                 elif len(FILES[path]) >= 5:
                     return MyStat(FILES[path][1], FILES[path][0],
                                   FILES[path][2], FILES[path][3],
@@ -452,7 +452,6 @@ class MyFS(fuse.Fuse):
                     if exp_record_json['id'] in expdatasetcounts.keys():
                         num_datasets = expdatasetcounts[exp_record_json['id']]
                         nlink = num_datasets + 2
-
 
                     FILES['/' + exp_dir_name] = \
                         (0, True,
