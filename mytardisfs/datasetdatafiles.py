@@ -75,12 +75,14 @@ def run():
         if staff_or_superuser or (found_dataset_in_experiment and
                                   (exp_public or exp_owned_or_shared)):
             dfs = Dataset_File.objects.filter(dataset__id=dataset_id)
-            dfList = []
+            df_list = []
             for df in dfs:
-                dfFields = dict(id=df.id, directory=df.directory,
+                df_fields = dict(id=df.id, directory=df.directory,
+                                 created_time=str(df.created_time),
+                                 modification_time=str(df.modification_time),
                                 filename=df.filename, size=df.size)
-                dfList.append(dfFields)
-            print str(dfList)
+                df_list.append(df_fields)
+            print str(df_list)
         elif not found_dataset_in_experiment:
             print "Data set (ID %s) does not belong to experiment (ID %s)." % \
                 (str(dataset_id), str(experiment_id))
