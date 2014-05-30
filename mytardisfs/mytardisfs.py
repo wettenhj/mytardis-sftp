@@ -227,10 +227,10 @@ LAST_QUERY_TIME['experiments'] = datetime.fromtimestamp(0)
 
 fuse.fuse_python_api = (0, 2)
 
-# Use same timestamp for all files in initial prototype
+# Timestamps obtained from MyTardis queries will be used
+# if available.
 # Start-up time of this FUSE process is the default
-# timestamp for everything.  Timestamps obtained
-# from MyTardis queries will be used if available.
+# timestamp for everything:
 _file_default_timestamp = int(time.time())
 
 # FILES[directory/file/path] = (size_in_bytes, is_directory)
@@ -490,36 +490,39 @@ class MyFS(fuse.Fuse):
             if use_api:
                 datafile_dicts = datafile_records_json['objects']
 
-            for datafile_dict in datafile_dicts:
-                # logger.debug("datafile_dict = " + str(datafile_dict))
-                datafile_id = datafile_dict['id']
+            for df in datafile_dicts:
+                # logger.debug("df = " + str(df))
+                datafile_id = df['id']
                 if use_api:
-                    datafile_directory = datafile_dict['directory'] \
+                    datafile_directory = df['directory'] \
                         .encode('ascii', 'ignore').strip('/')
                 else:
-                    datafile_directory = datafile_dict['directory']
+                    datafile_directory = df['directory']
                     if datafile_directory is None:
                         datafile_directory = ""
                     else:
                         datafile_directory = datafile_directory \
                             .encode('ascii', 'ignore').strip('/')
-                datafile_name = datafile_dict['filename'] \
+                datafile_name = df['filename'] \
                     .encode('ascii', 'ignore')
-                datafile_size = int(datafile_dict['size']
-                                    .encode('ascii', 'ignore'))
+                datafile_size = int(df['size'].encode('ascii', 'ignore'))
                 try:
                     datafile_created_time_datetime = \
-                        dateutil.parser.parse(datafile_dict['created_time'])
+                        dateutil.parser.parse(df['created_time'])
+                    datafile_created_timetuple = \
+                        datafile_created_time_datetime.timetuple()
                     datafile_created_time = \
-                        int(time.mktime(datafile_created_time_datetime.timetuple()))
+                        int(time.mktime(datafile_created_timetuple))
                 except:
                     logger.debug(traceback.format_exc())
                     datafile_created_time = _file_default_timestamp
                 try:
                     datafile_modification_time_datetime = \
-                        dateutil.parser.parse(datafile_dict['modification_time'])
+                        dateutil.parser.parse(df['modification_time'])
+                    datafile_modification_timetuple = \
+                        datafile_modification_time_datetime.timetuple()
                     datafile_modification_time = \
-                        int(time.mktime(datafile_modification_time_datetime.timetuple()))
+                        int(time.mktime(datafile_modification_timetuple))
                 except:
                     logger.debug(traceback.format_exc())
                     datafile_modification_time = _file_default_timestamp
