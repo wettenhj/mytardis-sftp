@@ -41,6 +41,8 @@
 # _mytardis_url = "https://mytardis.massive.org.au"
 # The latter is only used for RESTful API calls.  Currently, other code
 # in MyTardisFS requires it to run on the MyTardis server.
+# Also the MyTardis installation dir (e.g. /opt/mytardis/current)
+# and the use_api option for datafiles.
 
 import fuse
 import stat
@@ -51,6 +53,7 @@ import sys
 import getpass
 import subprocess
 import logging
+import traceback
 import threading
 import ast
 import errno
@@ -228,7 +231,7 @@ fuse.fuse_python_api = (0, 2)
 # Start-up time of this FUSE process is the default
 # timestamp for everything.  Timestamps obtained
 # from MyTardis queries will be used if available.
-_file_timestamp = int(time.time())
+_file_default_timestamp = int(time.time())
 
 # FILES[directory/file/path] = (size_in_bytes, is_directory)
 # FILES[directory/file/path] = (size_in_bytes, is_directory,
@@ -297,9 +300,9 @@ class MyStat(fuse.Stat):
     values depending on constructor args.
     """
     def __init__(self, is_dir, size,
-                 accessed=_file_timestamp,
-                 modified=_file_timestamp,
-                 created=_file_timestamp,
+                 accessed=_file_default_timestamp,
+                 modified=_file_default_timestamp,
+                 created=_file_default_timestamp,
                  nlink=0):
         fuse.Stat.__init__(self)
         if is_dir:
@@ -488,7 +491,7 @@ class MyFS(fuse.Fuse):
                 datafile_dicts = datafile_records_json['objects']
 
             for datafile_dict in datafile_dicts:
-                # logger.info(str(datafile_dict))
+                # logger.debug("datafile_dict = " + str(datafile_dict))
                 datafile_id = datafile_dict['id']
                 if use_api:
                     datafile_directory = datafile_dict['directory'] \
@@ -504,6 +507,25 @@ class MyFS(fuse.Fuse):
                     .encode('ascii', 'ignore')
                 datafile_size = int(datafile_dict['size']
                                     .encode('ascii', 'ignore'))
+                try:
+                    datafile_created_time_datetime = \
+                        dateutil.parser.parse(datafile_dict['created_time'])
+                    datafile_created_time = \
+                        int(time.mktime(datafile_created_time_datetime.timetuple()))
+                except:
+                    logger.debug(traceback.format_exc())
+                    datafile_created_time = _file_default_timestamp
+                try:
+                    datafile_modification_time_datetime = \
+                        dateutil.parser.parse(datafile_dict['modification_time'])
+                    datafile_modification_time = \
+                        int(time.mktime(datafile_modification_time_datetime.timetuple()))
+                except:
+                    logger.debug(traceback.format_exc())
+                    datafile_modification_time = _file_default_timestamp
+
+                datafile_accessed_time = datafile_modification_time
+
                 if datafile_directory != "":
                     # Intermediate subdirectories
                     for i in reversed(range(1,
@@ -517,10 +539,16 @@ class MyFS(fuse.Fuse):
                           datafile_directory] = (0, True)
                     FILES['/' + exp_dir_name + '/' + dataset_dir_name + '/' +
                           datafile_directory + '/' + datafile_name] \
-                        = (datafile_size, False)
+                        = (datafile_size, False,
+                           datafile_accessed_time,
+                           datafile_modification_time,
+                           datafile_created_time)
                 else:
                     FILES['/' + exp_dir_name + '/' + dataset_dir_name + '/' +
-                          datafile_name] = (datafile_size, False)
+                          datafile_name] = (datafile_size, False,
+                                            datafile_accessed_time,
+                                            datafile_modification_time,
+                                            datafile_created_time)
                 if datafile_directory not in DATAFILE_IDS[dataset_id]:
                     DATAFILE_IDS[dataset_id][datafile_directory] = dict()
                 DATAFILE_IDS[dataset_id][datafile_directory][datafile_name] \
