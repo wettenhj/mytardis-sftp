@@ -40,6 +40,7 @@ def run():
 
     from tardis.tardis_portal.models import Dataset, Dataset_File, Experiment
     from tardis.tardis_portal.models import UserAuthentication
+    from django.core.exceptions import ObjectDoesNotExist
 
     experiment_id = int(sys.argv[1])
     dataset_id = int(sys.argv[2])
@@ -64,9 +65,9 @@ def run():
             exp = Experiment.objects.get(id=experiment_id)
             exp_public = Experiment \
                 .public_access_implies_distribution(exp.public_access)
-            experimentsOwnedAndShared = Experiment.safe \
+            exps_owned_and_shared = Experiment.safe \
                 .owned_and_shared(mytardis_user)
-            exp_owned_or_shared = experimentsOwnedAndShared \
+            exp_owned_or_shared = exps_owned_and_shared \
                 .filter(id=experiment_id).exists()
             for dataset in exp.datasets.all():
                 if dataset.id == dataset_id:
