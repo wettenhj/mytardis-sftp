@@ -415,8 +415,6 @@ class MyFS(fuse.Fuse):
                          int(time.mktime(exp_created_time.timetuple())),
                          int(time.mktime(exp_created_time.timetuple())),
                          int(time.mktime(exp_created_time.timetuple())))
-                    # logger.info("FILES['/" + exp_dir_name + "'] \
-                    #    = (0, True)")
                 FILES['/'] = \
                     (0, True,
                      int(time.mktime(max_exp_created_time.timetuple())),
@@ -536,10 +534,18 @@ class MyFS(fuse.Fuse):
                         intermediate_subdirectory = \
                             datafile_directory.rsplit('/', i)[0]
                         FILES['/' + exp_dir_name + '/' + dataset_dir_name +
-                              '/' + intermediate_subdirectory] = (0, True)
+                              '/' + intermediate_subdirectory] = \
+                            (0, True,
+                             datafile_accessed_time,
+                             datafile_modification_time,
+                             datafile_created_time)
 
                     FILES['/' + exp_dir_name + '/' + dataset_dir_name + '/' +
-                          datafile_directory] = (0, True)
+                          datafile_directory] = \
+                        (0, True,
+                         datafile_accessed_time,
+                         datafile_modification_time,
+                         datafile_created_time)
                     FILES['/' + exp_dir_name + '/' + dataset_dir_name + '/' +
                           datafile_directory + '/' + datafile_name] \
                         = (datafile_size, False,
