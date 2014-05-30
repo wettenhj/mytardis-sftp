@@ -24,9 +24,10 @@
 # To Do: Make sure directories are refreshed when necessary,
 # e.g. when a new dataset is added.
 
-# To Do: Tidy up code and make it PEP-8 compliant.
+# To Do: Tidy up code, e.g. attributes of FILES[path] should be stored
+# in an object of some custom class, not just in a tuple.
 
-# To Do: Implement nlink for experiment directories.  Already done for
+# To Do: Implement nlink for experiment directories. Already done for
 # root directory and for dataset directories.
 
 # To Do: Implement datafile timestamps for stat.
@@ -249,6 +250,20 @@ exp_records_json = response.json()
 num_exp_records_found = exp_records_json['meta']['total_count']
 logger.info(str(num_exp_records_found) +
             " experiment record(s) found for user " + mytardis_username)
+
+cmd = ['sudo', '-u', 'mytardis',
+       '/usr/local/bin/_countexpdatasets']
+logger.info(str(cmd))
+proc = subprocess.Popen(cmd, stdout=subprocess.PIPE,
+                        stderr=subprocess.PIPE)
+stdout, stderr = proc.communicate()
+if stderr is not None and stderr != "":
+    logger.info(stderr)
+try:
+    expdatasetcounts = ast.literal_eval(stdout.strip())
+except:
+    expdatasetcounts = dict()
+
 if int(num_exp_records_found) > 0:
     max_exp_created_time = \
         dateutil.parser.parse(exp_records_json['objects'][0]['created_time'])
@@ -258,13 +273,18 @@ for exp_record_json in exp_records_json['objects']:
     exp_created_time = dateutil.parser.parse(exp_record_json['created_time'])
     if exp_created_time > max_exp_created_time:
         max_exp_created_time = exp_created_time
+
+    nlink = 2
+    if exp_record_json['id'] in expdatasetcounts.keys():
+        num_datasets = expdatasetcounts[exp_record_json['id']]
+        nlink = num_datasets + 2
+
     FILES['/' + exp_dir_name] = \
         (0, True,
          int(time.mktime(exp_created_time.timetuple())),
          int(time.mktime(exp_created_time.timetuple())),
-         int(time.mktime(exp_created_time.timetuple())))
-    # logger.info("FILES['/'" + exp_dir_name + "] = " +
-    #     str(FILES['/' + exp_dir_name]))
+         int(time.mktime(exp_created_time.timetuple())),
+         nlink)
 
 # Add 2 to nlink for "." and ".."
 FILES['/'] = (0, True,
@@ -347,7 +367,11 @@ class MyFS(fuse.Fuse):
                 return MyStat(True, _directory_size)
         else:
             try:
-                if len(FILES[path]) >= 5:
+                if len(FILES[path]) >= 6:
+                    return MyStat(True, _directory_size,
+                                  FILES[path][2], FILES[path][3], FILES[path][4],
+                                  FILES[path][5])
+                elif len(FILES[path]) >= 5:
                     return MyStat(FILES[path][1], FILES[path][0],
                                   FILES[path][2], FILES[path][3],
                                   FILES[path][4])
@@ -397,6 +421,19 @@ class MyFS(fuse.Fuse):
                             " experiment record(s) found for user " +
                             mytardis_username)
 
+                cmd = ['sudo', '-u', 'mytardis',
+                       '/usr/local/bin/_countexpdatasets']
+                logger.info(str(cmd))
+                proc = subprocess.Popen(cmd, stdout=subprocess.PIPE,
+                                        stderr=subprocess.PIPE)
+                stdout, stderr = proc.communicate()
+                if stderr is not None and stderr != "":
+                    logger.info(stderr)
+                try:
+                    expdatasetcounts = ast.literal_eval(stdout.strip())
+                except:
+                    expdatasetcounts = []
+
                 # Doesn't check for deleted experiments,
                 # only adds to FILES dictionary.
                 if int(num_exp_records_found) > 0:
@@ -410,11 +447,19 @@ class MyFS(fuse.Fuse):
                         dateutil.parser.parse(exp_record_json['created_time'])
                     if exp_created_time > max_exp_created_time:
                         max_exp_created_time = exp_created_time
+
+                    nlink = 2
+                    if exp_record_json['id'] in expdatasetcounts.keys():
+                        num_datasets = expdatasetcounts[exp_record_json['id']]
+                        nlink = num_datasets + 2
+
+
                     FILES['/' + exp_dir_name] = \
                         (0, True,
                          int(time.mktime(exp_created_time.timetuple())),
                          int(time.mktime(exp_created_time.timetuple())),
-                         int(time.mktime(exp_created_time.timetuple())))
+                         int(time.mktime(exp_created_time.timetuple())),
+                         nlink)
                 FILES['/'] = \
                     (0, True,
                      int(time.mktime(max_exp_created_time.timetuple())),
