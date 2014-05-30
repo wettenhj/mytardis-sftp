@@ -37,7 +37,7 @@ def run():
                          stdout=out, stderr=err)
 
     count = 0
-    while count < 50:
+    while count < 100:
         proc = subprocess.Popen(["stat", "-f", "-c", "%T",
                                  os.path.join(HOME, "MyTardis")],
                                 stdout=subprocess.PIPE,
@@ -57,7 +57,7 @@ def run():
         time.sleep(0.1)
         count = count + 1
 
-    print os.path.join(HOME, "MyTardis") + " still isn't mounted after 5 seconds."
+    print os.path.join(HOME, "MyTardis") + " still isn't mounted after 10 seconds."
     print "You could try: "
     print ""
     print "    tail ~/mytardisftpd-error.log"

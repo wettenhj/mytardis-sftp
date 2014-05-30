@@ -1,6 +1,6 @@
 mytardisfs
 ==========
-The scripts in this repository form a prototype for making MyTardis data available in a FUSE virtual filesystem, which can be exported via SFTP (and related methods such as RSYNC over SSH).  After installing with "sudo python setup.py install", these scripts are accessible currently from within /usr/local/bin/ on my MyTardis server.  The main script is mytardisfs, which uses Python-Fuse to set up a virtual filesystem.  The mytardisftpd script is an easy way to call mytardisfs - it automatically chooses a mountpoint, ~/MyTardis, calls mytardisfs, and waits for the FUSE filesystem to be ready, returning 0 on success, and 1 if it's not ready after 5 seconds.  
+The scripts in this repository form a prototype for making MyTardis data available in a FUSE virtual filesystem, which can be exported via SFTP (and related methods such as RSYNC over SSH).  After installing with "sudo python setup.py install", these scripts are accessible currently from within /usr/local/bin/ on my MyTardis server.  The main script is mytardisfs, which uses Python-Fuse to set up a virtual filesystem.  The mytardisftpd script is an easy way to call mytardisfs - it automatically chooses a mountpoint, ~/MyTardis, calls mytardisfs, and waits for the FUSE filesystem to be ready, returning 0 on success, and 1 if it's not ready after 10 seconds.  
 
 Launching mytardis-sftp (a Python-Fuse process).
 -----------------------------------------------
@@ -24,7 +24,8 @@ The other method is to use Django to access the MyTardis data.  For example, the
 To allow regular users to run scripts like "_datafiledescriptord", we need to add a rule into /etc/sudoers.  *BE CAREFUL EDITING THIS FILE - USE visudo OR sudoedit TO ENSURE THAT YOU DON'T ACCIDENTALLY CREATE A SYNTAX ERROR WHICH COMPLETELY DISABLES YOUR SUDO ACCESS.*  Rules in /etc/sudoers are read in order from top to bottom, so if you add a 
 rule down the bottom, then you can be sure that it won't be overwritten by any subsequent rules.
 ```
-ALL     ALL=(mytardis:mytardis) NOPASSWD: /usr/local/bin/_myapikey, /usr/local/bin/_datafiledescriptord, /usr/local/bin/_datasetdatafiles
+ALL     ALL=(mytardis:mytardis) NOPASSWD: /usr/local/bin/_myapikey, /usr/local/bin/_datafiledescriptord, /usr/local/bin/_datasetdatafiles, /usr/local/bin/_countexpdatasets
+
 ```
 
 If you're wondering why we have an arbitrary looking "\_datasetdatafiles" script (which as the name suggests, queries MyTardis for a list of datafiles belonging to a given dataset), it is because most queries like this are currently done with the TastyPie RESTful API.  But just recently, I have been testing whether it is actually faster to do these queries using the Django models instead.

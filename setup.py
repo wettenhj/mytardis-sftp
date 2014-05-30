@@ -17,6 +17,7 @@ setup(name='mytardisfs',
           "console_scripts": [
               "_myapikey = mytardisfs.myapikey:run",
               "_datasetdatafiles = mytardisfs.datasetdatafiles:run",
+              "_countexpdatasets = mytardisfs.countexpdatasets:run",
               "_datafiledescriptord = mytardisfs.datafiledescriptord:run",
               "mytardisfs = mytardisfs.mytardisfs:run",
               "mytardisftpd = mytardisfs.mytardisftpd:run",
