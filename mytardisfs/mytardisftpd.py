@@ -57,9 +57,19 @@ def run():
         time.sleep(0.1)
         count = count + 1
 
-    print os.path.join(HOME, "MyTardis") + " failed to mount after 5 seconds."
+    print os.path.join(HOME, "MyTardis") + " still isn't mounted after 5 seconds."
     print "You could try: "
-    print "  tail $HOME/mytardisftpd-error.log"
-    print "  tail $HOME/mytardisftpd.log"
+    print ""
+    print "    tail ~/mytardisftpd-error.log"
+    print "    tail ~/mytardisftpd.log"
+    print ""
+    print "If you don't spot any errors, you can continue to check ~/MyTardis "
+    print "and check for a \"mytardisfs\" process running under your account."
+    print ""
+    print "If you want to terminate the \"mytardisfs\" process and unmount"
+    print "~/MyTardis, then you can do so by running:"
+    print ""
+    print "    fusermount -uz ~/MyTardis"
+    print ""
 
     sys.exit(1)
