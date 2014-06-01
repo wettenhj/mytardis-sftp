@@ -16,17 +16,6 @@
 # To Do: Make sure file/directory names are legal, e.g. they shouldn't
 # contain the '/' character. Grischa suggests replacing '/' with '-'.
 
-# To Do: Improve efficiency / response time, e.g. re-use locally cached
-# query results for list of experiments, list of datasets or list of
-# datafiles if the previous query was less than n seconds ago (e.g. n=30).
-# Already done for list of experiments.  We don't cache datafile content.
-
-# To Do: Make sure directories are refreshed when necessary,
-# e.g. when a new dataset is added.
-
-# To Do: Tidy up code, e.g. attributes of FILES[path] should be stored
-# in an object of some custom class, not just in a tuple.
-
 # To Do: Remove hard-coding of things like "cvl_ldap" - the MyTardis
 # authentication method used to resolve the POSIX username and obtain
 # the API key.  This should probably be a command-line argument of
@@ -34,6 +23,8 @@
 
 # To Do: The following need to be accessible as a command-line options:
 # _experiments_list_cache_time_seconds = 30
+# _experiment_datasets_cache_time_seconds = 30
+# _dataset_datafiles_cache_time_seconds = 30
 # _mytardis_url = "https://mytardis.massive.org.au"
 # The latter is only used for RESTful API calls.  Currently, other code
 # in MyTardisFS requires it to run on the MyTardis server.
@@ -219,6 +210,7 @@ _default_directory_size = 4096
 
 _experiments_list_cache_time_seconds = 30
 _experiment_datasets_cache_time_seconds = 30
+_dataset_datafiles_cache_time_seconds = 30
 LAST_QUERY_TIME = dict()
 LAST_QUERY_TIME['experiments'] = datetime.fromtimestamp(0)
 
@@ -540,159 +532,168 @@ class MyFS(fuse.Fuse):
             LAST_QUERY_TIME[experiment_id+'_datasets'] = datetime.now()
 
         if len(pathComponents) == 3 and pathComponents[1] != '':
-            dataset_dir_entry = \
-                DirEntry(file_path='/'+exp_dir_name+'/'+dataset_dir_name,
-                         size_in_bytes=_default_directory_size,
-                         is_directory=True)
-            FILES[dataset_dir_entry.get_file_path()] = dataset_dir_entry
-            DATAFILE_IDS[dataset_id] = dict()
-            DATAFILE_SIZES[dataset_id] = dict()
-            DATAFILE_FILE_OBJECTS[dataset_id] = dict()
-            DATAFILE_CLOSE_TIMERS[dataset_id] = dict()
+            if dataset_id+'_datafiles' not in LAST_QUERY_TIME:
+                LAST_QUERY_TIME[dataset_id+'_datafiles'] = \
+                    datetime.fromtimestamp(0)
+            time_since_last_dataset_datafiles_query = datetime.now() - \
+                LAST_QUERY_TIME[dataset_id+'_datafiles']
+            if time_since_last_dataset_datafiles_query.seconds > \
+                    _dataset_datafiles_cache_time_seconds:
+                dataset_dir_entry = \
+                    DirEntry(file_path='/'+exp_dir_name+'/'+dataset_dir_name,
+                             size_in_bytes=_default_directory_size,
+                             is_directory=True)
+                FILES[dataset_dir_entry.get_file_path()] = dataset_dir_entry
+                DATAFILE_IDS[dataset_id] = dict()
+                DATAFILE_SIZES[dataset_id] = dict()
+                DATAFILE_FILE_OBJECTS[dataset_id] = dict()
+                DATAFILE_CLOSE_TIMERS[dataset_id] = dict()
 
-            use_api = False
+                use_api = False
 
-            if use_api:
-                url = _mytardis_url + \
-                    "/api/v1/dataset_file/?format=json&limit=0&" + \
-                    "dataset__id=" + str(dataset_id)
-                logger.info(url)
-                response = requests.get(url=url, headers=_headers)
-                datafile_records_json = response.json()
-                num_datafile_records_found = \
-                    datafile_records_json['meta']['total_count']
-            else:
-                cmd = ['sudo', '-u', 'mytardis',
-                       '/usr/local/bin/_datasetdatafiles',
-                       experiment_id, dataset_id]
-                logger.info(str(cmd))
-                proc = subprocess.Popen(cmd, stdout=subprocess.PIPE,
-                                        stderr=subprocess.PIPE)
-                stdout, stderr = proc.communicate()
-                if stderr is not None and stderr != "":
-                    logger.info(stderr)
-
-                datafile_dicts_string = stdout.strip()
-                # logger.info("datafile_dicts_string: " +
-                #     datafile_dicts_string)
-                datafile_dicts = ast.literal_eval(datafile_dicts_string)
-                num_datafile_records_found = len(datafile_dicts)
-
-            logger.info(str(num_datafile_records_found) +
-                        " datafile record(s) found for dataset ID " +
-                        str(dataset_id))
-
-            if use_api:
-                datafile_dicts = datafile_records_json['objects']
-
-            for df in datafile_dicts:
-                # logger.debug("df = " + str(df))
-                datafile_id = df['id']
                 if use_api:
-                    datafile_directory = df['directory'] \
-                        .encode('ascii', 'ignore').strip('/')
+                    url = _mytardis_url + \
+                        "/api/v1/dataset_file/?format=json&limit=0&" + \
+                        "dataset__id=" + str(dataset_id)
+                    logger.info(url)
+                    response = requests.get(url=url, headers=_headers)
+                    datafile_records_json = response.json()
+                    num_datafile_records_found = \
+                        datafile_records_json['meta']['total_count']
                 else:
-                    datafile_directory = df['directory']
-                    if datafile_directory is None:
-                        datafile_directory = ""
-                    else:
-                        datafile_directory = datafile_directory \
+                    cmd = ['sudo', '-u', 'mytardis',
+                           '/usr/local/bin/_datasetdatafiles',
+                           experiment_id, dataset_id]
+                    logger.info(str(cmd))
+                    proc = subprocess.Popen(cmd, stdout=subprocess.PIPE,
+                                            stderr=subprocess.PIPE)
+                    stdout, stderr = proc.communicate()
+                    if stderr is not None and stderr != "":
+                        logger.info(stderr)
+
+                    datafile_dicts_string = stdout.strip()
+                    # logger.info("datafile_dicts_string: " +
+                    #     datafile_dicts_string)
+                    datafile_dicts = ast.literal_eval(datafile_dicts_string)
+                    num_datafile_records_found = len(datafile_dicts)
+
+                logger.info(str(num_datafile_records_found) +
+                            " datafile record(s) found for dataset ID " +
+                            str(dataset_id))
+
+                if use_api:
+                    datafile_dicts = datafile_records_json['objects']
+
+                for df in datafile_dicts:
+                    # logger.debug("df = " + str(df))
+                    datafile_id = df['id']
+                    if use_api:
+                        df_directory = df['directory'] \
                             .encode('ascii', 'ignore').strip('/')
-                datafile_name = df['filename'] \
-                    .encode('ascii', 'ignore')
-                datafile_size = int(df['size'].encode('ascii', 'ignore'))
-                try:
-                    datafile_created_time_datetime = \
-                        dateutil.parser.parse(df['created_time'])
-                    datafile_created_timetuple = \
-                        datafile_created_time_datetime.timetuple()
-                    datafile_created_time = \
-                        int(time.mktime(datafile_created_timetuple))
-                except:
-                    logger.debug(traceback.format_exc())
-                    datafile_created_time = _file_default_timestamp
-                try:
-                    datafile_modification_time_datetime = \
-                        dateutil.parser.parse(df['modification_time'])
-                    datafile_modification_timetuple = \
-                        datafile_modification_time_datetime.timetuple()
-                    datafile_modification_time = \
-                        int(time.mktime(datafile_modification_timetuple))
-                except:
-                    logger.debug(traceback.format_exc())
-                    datafile_modification_time = _file_default_timestamp
+                    else:
+                        df_directory = df['directory']
+                        if df_directory is None:
+                            df_directory = ""
+                        else:
+                            df_directory = df_directory \
+                                .encode('ascii', 'ignore').strip('/')
+                    df_filename = df['filename'] \
+                        .encode('ascii', 'ignore')
+                    df_size = int(df['size'].encode('ascii', 'ignore'))
+                    try:
+                        df_created_time_datetime = \
+                            dateutil.parser.parse(df['created_time'])
+                        df_created_timetuple = \
+                            df_created_time_datetime.timetuple()
+                        df_created_time = \
+                            int(time.mktime(df_created_timetuple))
+                    except:
+                        logger.debug(traceback.format_exc())
+                        df_created_time = _file_default_timestamp
+                    try:
+                        df_modification_time_datetime = \
+                            dateutil.parser.parse(df['modification_time'])
+                        df_modification_timetuple = \
+                            df_modification_time_datetime.timetuple()
+                        df_modification_time = \
+                            int(time.mktime(df_modification_timetuple))
+                    except:
+                        logger.debug(traceback.format_exc())
+                        df_modification_time = _file_default_timestamp
 
-                datafile_accessed_time = datafile_modification_time
+                    df_accessed_time = df_modification_time
 
-                if datafile_directory != "":
-                    # Intermediate subdirectories
-                    for i in reversed(range(1,
-                                      len(datafile_directory.split('/')))):
-                        intermediate_subdirectory = \
-                            datafile_directory.rsplit('/', i)[0]
-                        intermediate_subdir_entry = \
+                    if df_directory != "":
+                        # Intermediate subdirectories
+                        for i in reversed(range(1,
+                                          len(df_directory.split('/')))):
+                            intermediate_subdirectory = \
+                                df_directory.rsplit('/', i)[0]
+                            intermediate_subdir_entry = \
+                                DirEntry(file_path='/' + exp_dir_name + '/' +
+                                         dataset_dir_name + '/' +
+                                         intermediate_subdirectory,
+                                         size_in_bytes=_default_directory_size,
+                                         is_directory=True,
+                                         accessed=df_accessed_time,
+                                         modified=df_accessed_time,
+                                         created=df_accessed_time)
+                            FILES[intermediate_subdir_entry.get_file_path()] = \
+                                intermediate_subdir_entry
+
+                        datafile_dir_entry = \
                             DirEntry(file_path='/' + exp_dir_name + '/' +
                                      dataset_dir_name + '/' +
-                                     intermediate_subdirectory,
+                                     df_directory,
                                      size_in_bytes=_default_directory_size,
                                      is_directory=True,
-                                     accessed=datafile_accessed_time,
-                                     modified=datafile_accessed_time,
-                                     created=datafile_accessed_time)
-                        FILES[intermediate_subdir_entry.get_file_path()] = \
-                            intermediate_subdir_entry
+                                     accessed=df_accessed_time,
+                                     modified=df_accessed_time,
+                                     created=df_accessed_time)
+                        FILES[datafile_dir_entry.get_file_path()] = \
+                            datafile_dir_entry
 
-                    datafile_dir_entry = \
-                        DirEntry(file_path='/' + exp_dir_name + '/' +
-                                 dataset_dir_name + '/' + datafile_directory,
-                                 size_in_bytes=_default_directory_size,
-                                 is_directory=True,
-                                 accessed=datafile_accessed_time,
-                                 modified=datafile_accessed_time,
-                                 created=datafile_accessed_time)
-                    FILES[datafile_dir_entry.get_file_path()] = \
-                        datafile_dir_entry
-
-                    datafile_entry = \
-                        DirEntry(file_path='/' + exp_dir_name + '/' +
-                                 dataset_dir_name + '/' +
-                                 datafile_directory + '/' +
-                                 datafile_name,
-                                 size_in_bytes=datafile_size,
-                                 is_directory=False,
-                                 accessed=datafile_accessed_time,
-                                 modified=datafile_accessed_time,
-                                 created=datafile_accessed_time)
-                    FILES[datafile_entry.get_file_path()] = datafile_entry
-                else:
-                    datafile_entry = \
-                        DirEntry(file_path='/' + exp_dir_name + '/' +
-                                 dataset_dir_name + '/' +
-                                 datafile_name,
-                                 size_in_bytes=datafile_size,
-                                 is_directory=False,
-                                 accessed=datafile_accessed_time,
-                                 modified=datafile_accessed_time,
-                                 created=datafile_accessed_time)
-                    FILES[datafile_entry.get_file_path()] = datafile_entry
-                if datafile_directory not in DATAFILE_IDS[dataset_id]:
-                    DATAFILE_IDS[dataset_id][datafile_directory] = dict()
-                DATAFILE_IDS[dataset_id][datafile_directory][datafile_name] \
-                    = datafile_id
-                if datafile_directory not in DATAFILE_SIZES[dataset_id]:
-                    DATAFILE_SIZES[dataset_id][datafile_directory] = dict()
-                DATAFILE_SIZES[dataset_id][datafile_directory][datafile_name] \
-                    = datafile_size
-                if datafile_directory not in DATAFILE_FILE_OBJECTS[dataset_id]:
-                    DATAFILE_FILE_OBJECTS[dataset_id][datafile_directory] \
-                        = dict()
-                dfodict = DATAFILE_FILE_OBJECTS[dataset_id][datafile_directory]
-                dfodict[datafile_name] = None
-                if datafile_directory not in DATAFILE_CLOSE_TIMERS[dataset_id]:
-                    DATAFILE_CLOSE_TIMERS[dataset_id][datafile_directory] \
-                        = dict()
-                dctdict = DATAFILE_CLOSE_TIMERS[dataset_id][datafile_directory]
-                dctdict[datafile_name] = None
+                        datafile_entry = \
+                            DirEntry(file_path='/' + exp_dir_name + '/' +
+                                     dataset_dir_name + '/' +
+                                     df_directory + '/' +
+                                     df_filename,
+                                     size_in_bytes=df_size,
+                                     is_directory=False,
+                                     accessed=df_accessed_time,
+                                     modified=df_accessed_time,
+                                     created=df_accessed_time)
+                        FILES[datafile_entry.get_file_path()] = datafile_entry
+                    else:
+                        datafile_entry = \
+                            DirEntry(file_path='/' + exp_dir_name + '/' +
+                                     dataset_dir_name + '/' +
+                                     df_filename,
+                                     size_in_bytes=df_size,
+                                     is_directory=False,
+                                     accessed=df_accessed_time,
+                                     modified=df_accessed_time,
+                                     created=df_accessed_time)
+                        FILES[datafile_entry.get_file_path()] = datafile_entry
+                    if df_directory not in DATAFILE_IDS[dataset_id]:
+                        DATAFILE_IDS[dataset_id][df_directory] = dict()
+                    DATAFILE_IDS[dataset_id][df_directory][df_filename] \
+                        = datafile_id
+                    if df_directory not in DATAFILE_SIZES[dataset_id]:
+                        DATAFILE_SIZES[dataset_id][df_directory] = dict()
+                    dsdict = DATAFILE_SIZES[dataset_id][df_directory]
+                    dsdict[df_filename] = df_size
+                    if df_directory not in DATAFILE_FILE_OBJECTS[dataset_id]:
+                        DATAFILE_FILE_OBJECTS[dataset_id][df_directory] \
+                            = dict()
+                    dfodict = DATAFILE_FILE_OBJECTS[dataset_id][df_directory]
+                    dfodict[df_filename] = None
+                    if df_directory not in DATAFILE_CLOSE_TIMERS[dataset_id]:
+                        DATAFILE_CLOSE_TIMERS[dataset_id][df_directory] \
+                            = dict()
+                    dctdict = DATAFILE_CLOSE_TIMERS[dataset_id][df_directory]
+                    dctdict[df_filename] = None
+            LAST_QUERY_TIME[dataset_id+'_datafiles'] = datetime.now()
 
         path_depth = path.count('/')
         # FIXME: Iterating through the entire FILES dictionary is inefficient
