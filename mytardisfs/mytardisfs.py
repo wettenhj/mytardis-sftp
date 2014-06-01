@@ -1,20 +1,23 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-# Based on Steve Androulakis's
-# proof of concept that produces a virtual FUSE-mountable
-# file/directory structure from a python dictionary
-# By Steve Androulakis <http://github.com/steveandroulakis>
+# By James Wettenhall <http://github.com/wettenhj>
+
 # Requires FUSE (linux: use package manager to install)
 # Requires python-fuse: pip install fuse-python
 # Requires dateutil:    pip install python-dateutil
 # Requires requests:    pip install requests
+
 # USE:
-# mkdir MyTardis
-# Mount: mytardisfs MyTardis -f
-# Unmount: fusermount -uz MyTardis
+# mkdir ~/MyTardis
+# Mount: mytardisfs ~/MyTardis -f -o direct_io
+#    Or: mytardisftpd
+# Unmount: fusermount -uz ~/MyTardis
 
 # To Do: Make sure file/directory names are legal, e.g. they shouldn't
 # contain the '/' character. Grischa suggests replacing '/' with '-'.
+
+# To Do: nlink is not correct for dataset directories containing
+# subdirectories.
 
 # To Do: Remove hard-coding of things like "cvl_ldap" - the MyTardis
 # authentication method used to resolve the POSIX username and obtain
