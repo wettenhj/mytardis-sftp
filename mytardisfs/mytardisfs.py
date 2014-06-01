@@ -218,6 +218,7 @@ _headers = {'Authorization': 'ApiKey ' + mytardis_username + ":" +
 _default_directory_size = 4096
 
 _experiments_list_cache_time_seconds = 30
+_experiment_datasets_cache_time_seconds = 30
 LAST_QUERY_TIME = dict()
 LAST_QUERY_TIME['experiments'] = datetime.fromtimestamp(0)
 
@@ -245,7 +246,7 @@ class DirEntry():
         self.nlink = nlink
 
         if self.nlink == 0:
-            if is_dir:
+            if self.is_directory:
                 self.nlink = 2
             else:
                 self.nlink = 1
@@ -368,7 +369,7 @@ class MyStat(fuse.Stat):
     """
     def __init__(self, dir_entry):
         fuse.Stat.__init__(self)
-        if dir_entry.get_is_dir():
+        if dir_entry.get_is_directory():
             self.st_mode = stat.S_IFDIR | stat.S_IRUSR | stat.S_IXUSR
             if dir_entry.get_nlink() != 0:
                 self.st_nlink = dir_entry.get_nlink()
@@ -380,7 +381,7 @@ class MyStat(fuse.Stat):
         else:
             self.st_mode = stat.S_IFREG | stat.S_IRUSR
             self.st_nlink = 1
-            self.st_size = dir_entry.get_size()
+            self.st_size = dir_entry.get_size_in_bytes()
         self.st_atime = dir_entry.get_accessed()
         self.st_mtime = dir_entry.get_modified()
         self.st_ctime = dir_entry.get_created()
@@ -428,9 +429,9 @@ class MyFS(fuse.Fuse):
             subdirectory = pathComponents[3]
 
         if len(pathComponents) == 1:
-            time_since_last_experiment_query = datetime.now() - \
+            time_since_last_experiments_query = datetime.now() - \
                 LAST_QUERY_TIME['experiments']
-            if time_since_last_experiment_query.seconds > \
+            if time_since_last_experiments_query.seconds > \
                     _experiments_list_cache_time_seconds:
                 url = _mytardis_url + "/api/v1/experiment/?format=json&limit=0"
                 logger.info(url)
@@ -502,30 +503,41 @@ class MyFS(fuse.Fuse):
                 LAST_QUERY_TIME['experiments'] = datetime.now()
 
         if len(pathComponents) == 2 and pathComponents[1] != '':
-            url = _mytardis_url + \
-                "/api/v1/dataset/?format=json&limit=0&experiments__id=" + \
-                experiment_id
-            logger.info(url)
-            response = requests.get(url=url, headers=_headers)
-            if response.status_code < 200 or response.status_code >= 300:
-                logger.info("Response status_code = " +
-                            str(response.status_code))
-            dataset_records_json = response.json()
-            num_dataset_records_found = \
-                dataset_records_json['meta']['total_count']
-            logger.info(str(num_dataset_records_found) +
-                        " dataset record(s) found for exp ID " +
-                        experiment_id)
+            if experiment_id+'_datasets' not in LAST_QUERY_TIME:
+                LAST_QUERY_TIME[experiment_id+'_datasets'] = \
+                    datetime.fromtimestamp(0)
+            time_since_last_experiment_datasets_query = datetime.now() - \
+                LAST_QUERY_TIME[experiment_id+'_datasets']
+            if time_since_last_experiment_datasets_query.seconds > \
+                    _experiment_datasets_cache_time_seconds:
+                url = _mytardis_url + \
+                    "/api/v1/dataset/?format=json&limit=0&experiments__id=" + \
+                    experiment_id
+                logger.info(url)
+                response = requests.get(url=url, headers=_headers)
+                if response.status_code < 200 or response.status_code >= 300:
+                    logger.info("Response status_code = " +
+                                str(response.status_code))
+                dataset_records_json = response.json()
+                num_dataset_records_found = \
+                    dataset_records_json['meta']['total_count']
+                logger.info(str(num_dataset_records_found) +
+                            " dataset record(s) found for exp ID " +
+                            experiment_id)
 
-            for dataset_json in dataset_records_json['objects']:
-                dataset_dir_name = str(dataset_json['id']) + "-" + \
-                    (dataset_json['description'].encode('ascii', 'ignore')
-                        .replace(" ", "_"))
-                dataset_dir_entry = \
-                    DirEntry(file_path='/'+exp_dir_name+'/'+dataset_dir_name,
-                             size_in_bytes=_default_directory_size,
-                             is_directory=True)
-                FILES[dataset_dir_entry.get_file_path()] = dataset_dir_entry
+                for dataset_json in dataset_records_json['objects']:
+                    dataset_dir_name = str(dataset_json['id']) + "-" + \
+                        (dataset_json['description'].encode('ascii', 'ignore')
+                            .replace(" ", "_"))
+                    dataset_dir_entry = \
+                        DirEntry(file_path='/' + exp_dir_name + '/' +
+                                 dataset_dir_name,
+                                 size_in_bytes=_default_directory_size,
+                                 is_directory=True)
+                    FILES[dataset_dir_entry.get_file_path()] = \
+                        dataset_dir_entry
+
+            LAST_QUERY_TIME[experiment_id+'_datasets'] = datetime.now()
 
         if len(pathComponents) == 3 and pathComponents[1] != '':
             dataset_dir_entry = \
@@ -619,9 +631,9 @@ class MyFS(fuse.Fuse):
                         intermediate_subdirectory = \
                             datafile_directory.rsplit('/', i)[0]
                         intermediate_subdir_entry = \
-                            DirEntry(file_path='/'+exp_dir_name+'/'+
-                                         dataset_dir_name+'/'+
-                                         intermediate_subdirectory,
+                            DirEntry(file_path='/' + exp_dir_name + '/' +
+                                     dataset_dir_name + '/' +
+                                     intermediate_subdirectory,
                                      size_in_bytes=_default_directory_size,
                                      is_directory=True,
                                      accessed=datafile_accessed_time,
@@ -631,9 +643,8 @@ class MyFS(fuse.Fuse):
                             intermediate_subdir_entry
 
                     datafile_dir_entry = \
-                        DirEntry(file_path='/'+exp_dir_name+'/'+
-                                     dataset_dir_name+'/'+
-                                     datafile_directory,
+                        DirEntry(file_path='/' + exp_dir_name + '/' +
+                                 dataset_dir_name + '/' + datafile_directory,
                                  size_in_bytes=_default_directory_size,
                                  is_directory=True,
                                  accessed=datafile_accessed_time,
@@ -643,10 +654,10 @@ class MyFS(fuse.Fuse):
                         datafile_dir_entry
 
                     datafile_entry = \
-                        DirEntry(file_path='/'+exp_dir_name+'/'+
-                                     dataset_dir_name+'/'+
-                                     datafile_directory+'/'+
-                                     datafile_name,
+                        DirEntry(file_path='/' + exp_dir_name + '/' +
+                                 dataset_dir_name + '/' +
+                                 datafile_directory + '/' +
+                                 datafile_name,
                                  size_in_bytes=datafile_size,
                                  is_directory=False,
                                  accessed=datafile_accessed_time,
@@ -655,9 +666,9 @@ class MyFS(fuse.Fuse):
                     FILES[datafile_entry.get_file_path()] = datafile_entry
                 else:
                     datafile_entry = \
-                        DirEntry(file_path='/'+exp_dir_name+'/'+
-                                     dataset_dir_name+'/'+
-                                     datafile_name,
+                        DirEntry(file_path='/' + exp_dir_name + '/' +
+                                 dataset_dir_name + '/' +
+                                 datafile_name,
                                  size_in_bytes=datafile_size,
                                  is_directory=False,
                                  accessed=datafile_accessed_time,
