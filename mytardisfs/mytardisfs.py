@@ -27,18 +27,13 @@
 # To Do: Tidy up code, e.g. attributes of FILES[path] should be stored
 # in an object of some custom class, not just in a tuple.
 
-# To Do: Implement nlink for experiment directories. Already done for
-# root directory and for dataset directories.
-
-# To Do: Implement datafile timestamps for stat.
-
 # To Do: Remove hard-coding of things like "cvl_ldap" - the MyTardis
 # authentication method used to resolve the POSIX username and obtain
 # the API key.  This should probably be a command-line argument of
 # mtardisfs.
 
 # To Do: The following need to be accessible as a command-line options:
-# EXPERIMENTS_LIST_CACHE_TIME_SECONDS = 30
+# _experiments_list_cache_time_seconds = 30
 # _mytardis_url = "https://mytardis.massive.org.au"
 # The latter is only used for RESTful API calls.  Currently, other code
 # in MyTardisFS requires it to run on the MyTardis server.
@@ -220,9 +215,9 @@ _mytardis_url = "https://mytardis.massive.org.au"
 _headers = {'Authorization': 'ApiKey ' + mytardis_username + ":" +
             mytardis_apikey}
 
-_directory_size = 4096
+_default_directory_size = 4096
 
-EXPERIMENTS_LIST_CACHE_TIME_SECONDS = 30
+_experiments_list_cache_time_seconds = 30
 LAST_QUERY_TIME = dict()
 LAST_QUERY_TIME['experiments'] = datetime.fromtimestamp(0)
 
@@ -234,9 +229,51 @@ fuse.fuse_python_api = (0, 2)
 # timestamp for everything:
 _file_default_timestamp = int(time.time())
 
-# FILES[directory/file/path] = (size_in_bytes, is_directory)
-# FILES[directory/file/path] = (size_in_bytes, is_directory,
-#     accessed, modified, created, nlink)
+
+class DirEntry():
+    def __init__(self, file_path, size_in_bytes, is_directory,
+                 accessed=_file_default_timestamp,
+                 modified=_file_default_timestamp,
+                 created=_file_default_timestamp,
+                 nlink=0):
+        self.file_path = file_path
+        self.size_in_bytes = size_in_bytes
+        self.is_directory = is_directory
+        self.accessed = accessed
+        self.modified = modified
+        self.created = created
+        self.nlink = nlink
+
+        if self.nlink == 0:
+            if is_dir:
+                self.nlink = 2
+            else:
+                self.nlink = 1
+
+    def get_file_path(self):
+        return self.file_path
+
+    def get_size_in_bytes(self):
+        return self.size_in_bytes
+
+    def get_is_directory(self):
+        return self.is_directory
+
+    def get_accessed(self):
+        return self.accessed
+
+    def get_modified(self):
+        return self.modified
+
+    def get_created(self):
+        return self.created
+
+    def get_nlink(self):
+        return self.nlink
+
+# FILES[file_path] = \
+#     DirEntry(file_path, size_in_bytes, is_directory,
+#              accessed, modified, created, nlink)
 FILES = dict()
 DATAFILE_IDS = dict()
 DATAFILE_SIZES = dict()
@@ -273,25 +310,35 @@ for exp_record_json in exp_records_json['objects']:
     exp_created_time = dateutil.parser.parse(exp_record_json['created_time'])
     if exp_created_time > max_exp_created_time:
         max_exp_created_time = exp_created_time
+    exp_created_timestamp = \
+        int(time.mktime(exp_created_time.timetuple()))
 
     nlink = 2
     if exp_record_json['id'] in expdatasetcounts.keys():
         num_datasets = expdatasetcounts[exp_record_json['id']]
         nlink = num_datasets + 2
 
-    FILES['/' + exp_dir_name] = \
-        (0, True,
-         int(time.mktime(exp_created_time.timetuple())),
-         int(time.mktime(exp_created_time.timetuple())),
-         int(time.mktime(exp_created_time.timetuple())),
-         nlink)
+    exp_dir_entry = \
+        DirEntry(file_path='/' + exp_dir_name,
+                 size_in_bytes=_default_directory_size,
+                 is_directory=True,
+                 accessed=exp_created_timestamp,
+                 modified=exp_created_timestamp,
+                 created=exp_created_timestamp,
+                 nlink=nlink)
+    FILES[exp_dir_entry.get_file_path()] = exp_dir_entry
 
-# Add 2 to nlink for "." and ".."
-FILES['/'] = (0, True,
-              int(time.mktime(max_exp_created_time.timetuple())),
-              int(time.mktime(max_exp_created_time.timetuple())),
-              int(time.mktime(max_exp_created_time.timetuple())),
-              int(num_exp_records_found)+2)
+max_exp_created_timestamp = \
+    int(time.mktime(max_exp_created_time.timetuple()))
+root_dir_entry = \
+    DirEntry(file_path='/',
+             size_in_bytes=_default_directory_size,
+             is_directory=True,
+             accessed=max_exp_created_timestamp,
+             modified=max_exp_created_timestamp,
+             created=max_exp_created_timestamp,
+             nlink=int(num_exp_records_found)+2)
+FILES[root_dir_entry.get_file_path()] = root_dir_entry
 # logger.info("FILES['/'] = " + str(FILES['/']))
 
 LAST_QUERY_TIME['experiments'] = datetime.now()
@@ -299,13 +346,13 @@ LAST_QUERY_TIME['experiments'] = datetime.now()
 
 def file_array_to_list(files):
     # Files need to be returned in this format:
-    # FILES = [('file1', 15, False), ('file2', 15, False),
-    #          ('directory', 15, True)]
+    #     [('file1', 15, False), ('file2', 15, False),
+    #      ('directory', 15, True)]
 
     l = list()
-    for key, val in files.iteritems():
-        l.append((file_from_key(key), val[0], val[1]))
-
+    for key, dir_entry in files.iteritems():
+        l.append((file_from_key(key), dir_entry.get_size_in_bytes(),
+                  dir_entry.get_is_directory()))
     return l
 
 
@@ -319,28 +366,24 @@ class MyStat(fuse.Stat):
     Set up the stat object with appropriate
     values depending on constructor args.
     """
-    def __init__(self, is_dir, size,
-                 accessed=_file_default_timestamp,
-                 modified=_file_default_timestamp,
-                 created=_file_default_timestamp,
-                 nlink=0):
+    def __init__(self, dir_entry):
         fuse.Stat.__init__(self)
-        if is_dir:
+        if dir_entry.get_is_dir():
             self.st_mode = stat.S_IFDIR | stat.S_IRUSR | stat.S_IXUSR
-            if nlink != 0:
-                self.st_nlink = nlink
+            if dir_entry.get_nlink() != 0:
+                self.st_nlink = dir_entry.get_nlink()
             else:
                 # A directory without subdirectories
                 # still has "." and ".."
                 self.st_nlink = 2
-            self.st_size = _directory_size
+            self.st_size = _default_directory_size
         else:
             self.st_mode = stat.S_IFREG | stat.S_IRUSR
             self.st_nlink = 1
-            self.st_size = size
-        self.st_atime = accessed
-        self.st_mtime = modified
-        self.st_ctime = created
+            self.st_size = dir_entry.get_size()
+        self.st_atime = dir_entry.get_accessed()
+        self.st_mtime = dir_entry.get_modified()
+        self.st_ctime = dir_entry.get_created()
 
         self.st_uid = int(_uid)
         self.st_gid = int(_gid)
@@ -356,29 +399,10 @@ class MyFS(fuse.Fuse):
             path = path.rstrip("/")
         logger.debug("^ getattr: path = " + path)
 
-        # if path == "." or path == "..":
-        #     return MyStat(True, _directory_size)
-        if path == "/":
-            if len(FILES[path]) >= 6:
-                return MyStat(True, _directory_size,
-                              FILES[path][2], FILES[path][3],
-                              FILES[path][4], FILES[path][5])
-            else:
-                return MyStat(True, _directory_size)
-        else:
-            try:
-                if len(FILES[path]) >= 6:
-                    return MyStat(True, _directory_size,
-                                  FILES[path][2], FILES[path][3],
-                                  FILES[path][4], FILES[path][5])
-                elif len(FILES[path]) >= 5:
-                    return MyStat(FILES[path][1], FILES[path][0],
-                                  FILES[path][2], FILES[path][3],
-                                  FILES[path][4])
-                else:
-                    return MyStat(FILES[path][1], FILES[path][0])
-            except KeyError:
-                return -errno.ENOENT
+        try:
+            return MyStat(FILES[path])
+        except KeyError:
+            return -errno.ENOENT
 
     def getdir(self, path):
         logger.debug('getdir called:', path)
@@ -407,7 +431,7 @@ class MyFS(fuse.Fuse):
             time_since_last_experiment_query = datetime.now() - \
                 LAST_QUERY_TIME['experiments']
             if time_since_last_experiment_query.seconds > \
-                    EXPERIMENTS_LIST_CACHE_TIME_SECONDS:
+                    _experiments_list_cache_time_seconds:
                 url = _mytardis_url + "/api/v1/experiment/?format=json&limit=0"
                 logger.info(url)
                 response = requests.get(url=url, headers=_headers)
@@ -447,25 +471,34 @@ class MyFS(fuse.Fuse):
                         dateutil.parser.parse(exp_record_json['created_time'])
                     if exp_created_time > max_exp_created_time:
                         max_exp_created_time = exp_created_time
+                    exp_created_timestamp = \
+                        int(time.mktime(exp_created_time.timetuple()))
 
                     nlink = 2
                     if exp_record_json['id'] in expdatasetcounts.keys():
                         num_datasets = expdatasetcounts[exp_record_json['id']]
                         nlink = num_datasets + 2
 
-                    FILES['/' + exp_dir_name] = \
-                        (0, True,
-                         int(time.mktime(exp_created_time.timetuple())),
-                         int(time.mktime(exp_created_time.timetuple())),
-                         int(time.mktime(exp_created_time.timetuple())),
-                         nlink)
-                FILES['/'] = \
-                    (0, True,
-                     int(time.mktime(max_exp_created_time.timetuple())),
-                     int(time.mktime(max_exp_created_time.timetuple())),
-                     int(time.mktime(max_exp_created_time.timetuple())),
-                     # Add 2 to nlink for "." and ".."
-                     int(num_exp_records_found) + 2)
+                    exp_dir_entry = \
+                        DirEntry(file_path='/'+exp_dir_name,
+                                 size_in_bytes=_default_directory_size,
+                                 is_directory=True,
+                                 accessed=exp_created_timestamp,
+                                 modified=exp_created_timestamp,
+                                 created=exp_created_timestamp,
+                                 nlink=nlink)
+                    FILES[exp_dir_entry.get_file_path()] = exp_dir_entry
+                max_exp_created_timestamp = \
+                    int(time.mktime(max_exp_created_time.timetuple()))
+                root_dir_entry = \
+                    DirEntry(file_path='/',
+                             size_in_bytes=_default_directory_size,
+                             is_directory=True,
+                             accessed=max_exp_created_timestamp,
+                             modified=max_exp_created_timestamp,
+                             created=max_exp_created_timestamp,
+                             nlink=int(num_exp_records_found)+2)
+                FILES[root_dir_entry.get_file_path()] = root_dir_entry
                 LAST_QUERY_TIME['experiments'] = datetime.now()
 
         if len(pathComponents) == 2 and pathComponents[1] != '':
@@ -488,10 +521,18 @@ class MyFS(fuse.Fuse):
                 dataset_dir_name = str(dataset_json['id']) + "-" + \
                     (dataset_json['description'].encode('ascii', 'ignore')
                         .replace(" ", "_"))
-                FILES['/' + exp_dir_name + '/' + dataset_dir_name] = (0, True)
+                dataset_dir_entry = \
+                    DirEntry(file_path='/'+exp_dir_name+'/'+dataset_dir_name,
+                             size_in_bytes=_default_directory_size,
+                             is_directory=True)
+                FILES[dataset_dir_entry.get_file_path()] = dataset_dir_entry
 
         if len(pathComponents) == 3 and pathComponents[1] != '':
-            FILES['/' + exp_dir_name + '/' + dataset_dir_name] = (0, True)
+            dataset_dir_entry = \
+                DirEntry(file_path='/'+exp_dir_name+'/'+dataset_dir_name,
+                         size_in_bytes=_default_directory_size,
+                         is_directory=True)
+            FILES[dataset_dir_entry.get_file_path()] = dataset_dir_entry
             DATAFILE_IDS[dataset_id] = dict()
             DATAFILE_SIZES[dataset_id] = dict()
             DATAFILE_FILE_OBJECTS[dataset_id] = dict()
@@ -577,31 +618,52 @@ class MyFS(fuse.Fuse):
                                       len(datafile_directory.split('/')))):
                         intermediate_subdirectory = \
                             datafile_directory.rsplit('/', i)[0]
-                        FILES['/' + exp_dir_name + '/' + dataset_dir_name +
-                              '/' + intermediate_subdirectory] = \
-                            (0, True,
-                             datafile_accessed_time,
-                             datafile_modification_time,
-                             datafile_created_time)
+                        intermediate_subdir_entry = \
+                            DirEntry(file_path='/'+exp_dir_name+'/'+
+                                         dataset_dir_name+'/'+
+                                         intermediate_subdirectory,
+                                     size_in_bytes=_default_directory_size,
+                                     is_directory=True,
+                                     accessed=datafile_accessed_time,
+                                     modified=datafile_accessed_time,
+                                     created=datafile_accessed_time)
+                        FILES[intermediate_subdir_entry.get_file_path()] = \
+                            intermediate_subdir_entry
 
-                    FILES['/' + exp_dir_name + '/' + dataset_dir_name + '/' +
-                          datafile_directory] = \
-                        (0, True,
-                         datafile_accessed_time,
-                         datafile_modification_time,
-                         datafile_created_time)
-                    FILES['/' + exp_dir_name + '/' + dataset_dir_name + '/' +
-                          datafile_directory + '/' + datafile_name] \
-                        = (datafile_size, False,
-                           datafile_accessed_time,
-                           datafile_modification_time,
-                           datafile_created_time)
+                    datafile_dir_entry = \
+                        DirEntry(file_path='/'+exp_dir_name+'/'+
+                                     dataset_dir_name+'/'+
+                                     datafile_directory,
+                                 size_in_bytes=_default_directory_size,
+                                 is_directory=True,
+                                 accessed=datafile_accessed_time,
+                                 modified=datafile_accessed_time,
+                                 created=datafile_accessed_time)
+                    FILES[datafile_dir_entry.get_file_path()] = \
+                        datafile_dir_entry
+
+                    datafile_entry = \
+                        DirEntry(file_path='/'+exp_dir_name+'/'+
+                                     dataset_dir_name+'/'+
+                                     datafile_directory+'/'+
+                                     datafile_name,
+                                 size_in_bytes=datafile_size,
+                                 is_directory=False,
+                                 accessed=datafile_accessed_time,
+                                 modified=datafile_accessed_time,
+                                 created=datafile_accessed_time)
+                    FILES[datafile_entry.get_file_path()] = datafile_entry
                 else:
-                    FILES['/' + exp_dir_name + '/' + dataset_dir_name + '/' +
-                          datafile_name] = (datafile_size, False,
-                                            datafile_accessed_time,
-                                            datafile_modification_time,
-                                            datafile_created_time)
+                    datafile_entry = \
+                        DirEntry(file_path='/'+exp_dir_name+'/'+
+                                     dataset_dir_name+'/'+
+                                     datafile_name,
+                                 size_in_bytes=datafile_size,
+                                 is_directory=False,
+                                 accessed=datafile_accessed_time,
+                                 modified=datafile_accessed_time,
+                                 created=datafile_accessed_time)
+                    FILES[datafile_entry.get_file_path()] = datafile_entry
                 if datafile_directory not in DATAFILE_IDS[dataset_id]:
                     DATAFILE_IDS[dataset_id][datafile_directory] = dict()
                 DATAFILE_IDS[dataset_id][datafile_directory][datafile_name] \
