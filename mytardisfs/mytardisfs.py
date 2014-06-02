@@ -2,16 +2,35 @@
 # -*- coding: utf-8 -*-
 # By James Wettenhall <http://github.com/wettenhj>
 
-# Requires FUSE (linux: use package manager to install)
-# Requires python-fuse: pip install fuse-python
-# Requires dateutil:    pip install python-dateutil
-# Requires requests:    pip install requests
+# mytardisfs.py:
+#
+#     Can be installed as "/usr/local/bin/mytardisfs" by running:
+#     "sudo python setup.py install" from mytardisfs.py's parent dir.
+#
+#     Allows a POSIX user on a MyTardis server to access their MyTardis
+#     data as a FUSE virtual filesystem in ~/MyTardis/
 
-# USE:
-# mkdir ~/MyTardis
-# Mount: mytardisfs ~/MyTardis -f -o direct_io
-#    Or: mytardisftpd
+# Usage:
+#          mkdir ~/MyTardis
+#   Mount: mytardisfs ~/MyTardis -f -o direct_io 1>stdout.log 2>stderr.log &
+#      or: mytardisftpd
 # Unmount: fusermount -uz ~/MyTardis
+
+# Requires FUSE:
+#     sudo apt-get install fuse
+# FUSE devel libraries may be needed to build fuse-python:
+#     sudo apt-get install libfuse-dev
+# pkg-config may be needed to build fuse-python:
+#     sudo apt-get install pkg-config
+
+# pip and setuptools may be needed to install Python packages:
+#     sudo apt-get install python-pip
+
+# The following Python packages should automatically be installed
+# by running "sudo python setup.py install" from the mytardisfs/ dir:
+#     fuse-python: sudo pip install fuse-python
+#     dateutil:    sudo pip install python-dateutil
+#     requests:    sudo pip install requests
 
 # To Do: Make sure file/directory names are legal, e.g. they shouldn't
 # contain the '/' character. Grischa suggests replacing '/' with '-'.
