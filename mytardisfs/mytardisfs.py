@@ -228,7 +228,7 @@ if proc.returncode != 0:
     logger.error(message)
     sys.stderr.write(message)
     sys.exit(1)
-myapikey_stdout = stdout.read().strip()
+myapikey_stdout = stdout.strip()
 mytardis_username = myapikey_stdout.split(' ')[1].split(':')[0]
 mytardis_apikey = myapikey_stdout.split(':')[-1]
 
@@ -312,6 +312,8 @@ DATAFILE_CLOSE_TIMERS = dict()
 url = _mytardis_url + "/api/v1/experiment/?format=json&limit=0"
 logger.info(url)
 response = requests.get(url=url, headers=_headers)
+if response.status_code < 200 or response.status_code >= 300:
+    logger.info("Response status_code = " + str(response.status_code))
 exp_records_json = response.json()
 num_exp_records_found = exp_records_json['meta']['total_count']
 logger.info(str(num_exp_records_found) +
