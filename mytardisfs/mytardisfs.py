@@ -212,9 +212,22 @@ if not os.path.exists(fuse_mount_dir):
     os.makedirs(fuse_mount_dir)
 
 mytardis_username = getpass.getuser()
-proc = subprocess.Popen(["sudo", "-u", "mytardis", "_myapikey"],
-                        stdout=subprocess.PIPE)
-myapikey_stdout = proc.stdout.read().strip()
+proc = subprocess.Popen(["sudo", "-n", "-u", "mytardis", "_myapikey"],
+                        stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+stdout, stderr = proc.communicate()
+if proc.returncode != 0:
+    message = "Attempting to retrieve your MyTardis API key " + \
+        "as the 'mytardis' user failed.\n\n" + \
+        "Please ensure that you have read the instructions " + \
+        "in:\n\nhttps://github.com/monash-merc/mytardisfs/" + \
+        "blob/master/README.md\n\nfor configuring /etc/sudoers\n\n" + \
+        "You might need to run:\n\n" + \
+        "  /opt/mytardis/current/bin/django backfill_api_keys\n\n" + \
+        "to generate an API key for your MyTardis user account.\n"
+    logger.error(message)
+    sys.stderr.write(message)
+    sys.exit(1)
+myapikey_stdout = stdout.read().strip()
 mytardis_username = myapikey_stdout.split(' ')[1].split(':')[0]
 mytardis_apikey = myapikey_stdout.split(':')[-1]
 
@@ -303,7 +316,7 @@ num_exp_records_found = exp_records_json['meta']['total_count']
 logger.info(str(num_exp_records_found) +
             " experiment record(s) found for user " + mytardis_username)
 
-cmd = ['sudo', '-u', 'mytardis',
+cmd = ['sudo', '-n', '-u', 'mytardis',
        '/usr/local/bin/_countexpdatasets']
 logger.info(str(cmd))
 proc = subprocess.Popen(cmd, stdout=subprocess.PIPE,
@@ -460,7 +473,7 @@ class MyFS(fuse.Fuse):
                             " experiment record(s) found for user " +
                             mytardis_username)
 
-                cmd = ['sudo', '-u', 'mytardis',
+                cmd = ['sudo', '-n', '-u', 'mytardis',
                        '/usr/local/bin/_countexpdatasets']
                 logger.info(str(cmd))
                 proc = subprocess.Popen(cmd, stdout=subprocess.PIPE,
@@ -583,7 +596,7 @@ class MyFS(fuse.Fuse):
                     num_datafile_records_found = \
                         datafile_records_json['meta']['total_count']
                 else:
-                    cmd = ['sudo', '-u', 'mytardis',
+                    cmd = ['sudo', '-n', '-u', 'mytardis',
                            '/usr/local/bin/_datasetdatafiles',
                            experiment_id, dataset_id]
                     logger.info(str(cmd))

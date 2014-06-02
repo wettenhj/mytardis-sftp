@@ -22,7 +22,7 @@ class MyTardisDatafileDescriptor:
         socket_path = f.name
         f.close()
 
-        proc = subprocess.Popen(["sudo", "-u", "mytardis",
+        proc = subprocess.Popen(["sudo", "-n", "-u", "mytardis",
                                  "_datafiledescriptord",
                                  socket_path, str(experiment_id),
                                  str(datafile_id)],
