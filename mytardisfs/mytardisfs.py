@@ -223,7 +223,8 @@ if proc.returncode != 0:
         "blob/master/README.md\n\nfor configuring /etc/sudoers\n\n" + \
         "You might need to run:\n\n" + \
         "  /opt/mytardis/current/bin/django backfill_api_keys\n\n" + \
-        "to generate an API key for your MyTardis user account.\n"
+        "as the 'mytardis' user to generate an API key for your " + \
+        "MyTardis user account.\n"
     logger.error(message)
     sys.stderr.write(message)
     sys.exit(1)
