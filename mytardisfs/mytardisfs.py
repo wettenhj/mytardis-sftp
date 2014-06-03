@@ -365,6 +365,8 @@ response = requests.get(url=url, headers=_headers)
 if response.status_code < 200 or response.status_code >= 300:
     logger.info("Response status_code = " + str(response.status_code))
 exp_records_json = response.json()
+if response.status_code < 200 or response.status_code >= 300:
+    logger.info(exp_records_json)
 num_exp_records_found = exp_records_json['meta']['total_count']
 logger.info(str(num_exp_records_found) +
             " experiment record(s) found for user " + mytardis_username)
@@ -517,10 +519,11 @@ class MyFS(fuse.Fuse):
                 logger.info(url)
                 response = requests.get(url=url, headers=_headers)
                 if response.status_code < 200 or response.status_code >= 300:
-                    logger.info(url)
                     logger.info("Response status_code = " +
                                 str(response.status_code))
                 exp_records_json = response.json()
+		if response.status_code < 200 or response.status_code >= 300:
+		    logger.info(exp_records_json)
                 num_exp_records_found = exp_records_json['meta']['total_count']
                 logger.info(str(num_exp_records_found) +
                             " experiment record(s) found for user " +
@@ -598,6 +601,8 @@ class MyFS(fuse.Fuse):
                     logger.info("Response status_code = " +
                                 str(response.status_code))
                 dataset_records_json = response.json()
+                if response.status_code < 200 or response.status_code >= 300:
+                    logger.info(dataset_records_json)
                 num_dataset_records_found = \
                     dataset_records_json['meta']['total_count']
                 logger.info(str(num_dataset_records_found) +
