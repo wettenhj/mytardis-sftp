@@ -17,12 +17,21 @@ def run():
     #    /usr/local/bin/_datafiledescriptord, /usr/local/bin/_datasetdatafiles
 
     if getpass.getuser() != "mytardis" or "SUDO_USER" not in os.environ:
-        print "Usage: sudo -u mytardis _myapikey"
+        print "Usage: sudo -u mytardis _myapikey " + \
+            "mytardis_install_dir auth_provider"
         os._exit(1)
 
-    sys.path.append("/opt/mytardis/current/")
-    for egg in os.listdir("/opt/mytardis/current/eggs/"):
-        sys.path.append("/opt/mytardis/current/eggs/" + egg)
+    if len(sys.argv) < 3:
+        print "Usage: sudo -u mytardis _myapikey " + \
+            "mytardis_install_dir auth_provider"
+        sys.exit(1)
+
+    _mytardis_install_dir = sys.argv[1].strip('"')
+    _auth_provider = sys.argv[2]
+
+    sys.path.append(_mytardis_install_dir)
+    for egg in os.listdir(os.path.join(_mytardis_install_dir, "eggs")):
+        sys.path.append(os.path.join(_mytardis_install_dir, "eggs", egg))
     from django.core.management import setup_environ
     from tardis import settings
     setup_environ(settings)
@@ -32,7 +41,7 @@ def run():
 
     userAuth = UserAuthentication.objects \
         .get(username=os.environ['SUDO_USER'],
-             authenticationMethod='cvl_ldap')
+             authenticationMethod=_auth_provider)
     myTardisUser = userAuth.userProfile.user
 
     key = ApiKey.objects.get(user__username=myTardisUser.username)

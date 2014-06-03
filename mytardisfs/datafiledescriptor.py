@@ -14,7 +14,8 @@ class MyTardisDatafileDescriptor:
         self.file_descriptor = file_descriptor
 
     @staticmethod
-    def get_file_descriptor(experiment_id, datafile_id):
+    def get_file_descriptor(mytardis_install_dir, auth_provider,
+                            experiment_id, datafile_id):
 
         # Determine the absolute path of the socket
         # for interprocess communication:
@@ -24,6 +25,7 @@ class MyTardisDatafileDescriptor:
 
         proc = subprocess.Popen(["sudo", "-n", "-u", "mytardis",
                                  "_datafiledescriptord",
+                                 mytardis_install_dir, auth_provider,
                                  socket_path, str(experiment_id),
                                  str(datafile_id)],
                                 stderr=subprocess.PIPE, stdout=subprocess.PIPE)

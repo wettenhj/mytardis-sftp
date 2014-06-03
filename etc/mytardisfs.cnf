@@ -1,0 +1,9 @@
+[mytardisfs]
+mytardis_install_dir = /opt/mytardis/current
+mytardis_url = http://localhost
+auth_provider = localdb
+experiments_list_cache_time_seconds = 30
+experiment_datasets_cache_time_seconds = 30
+dataset_datafiles_cache_time_seconds = 30
+default_directory_size = 4096
+use_api_for_dataset_datafiles = False

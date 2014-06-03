@@ -24,13 +24,26 @@ setup(name='mytardisfs',
           ],
       },
       install_requires=['fuse-python', 'python-dateutil', 'requests',
-                        'fdsend'],
+                        'fdsend', 'ConfigParser'],
       zip_safe=False)
 
 if 'install' in sys.argv:
+    print ""
     man_path = '/usr/share/man/man1/'
     if os.path.exists(man_path):
-        print("Installing man page for mytardisfs...")
+        print "Installing /usr/share/man/man1/mytardisfs.1"
         man_page = "doc/mytardisfs.1"
         shutil.copy2(man_page, man_path)
         os.chmod(man_path + 'mytardisfs.1', int('444', 8))
+    config_path = '/etc/'
+    if os.path.exists(config_path):
+        config_filename = "mytardisfs.cnf"
+        config_src_file = os.path.join("etc", config_filename)
+        config_file_path = os.path.join("/etc", config_filename)
+        if os.path.exists(config_file_path):
+            print "Not overwriting existing " + config_file_path
+        else:
+            print "Installing /etc/mytardisfs.cnf"
+            shutil.copy2(config_src_file, config_path)
+            os.chmod(config_file_path, int('644', 8))
+    print ""
