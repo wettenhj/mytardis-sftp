@@ -21,7 +21,7 @@ The API was the preferred method in early discussions with stakeholders, however
 
 The other method is to use Django to access the MyTardis data.  For example, the "\_datafiledescriptord" console descript, generated in setup.py from the "datafiledescriptord.py" module is designed to be run with "sudo -u mytardis", so that it can access the MyTardis file store directly, open a data file, and hand the file descriptor over to the unprivileged mytardisfs process.  The "datafiledescriptord.py" script checks the SUDO\_USER environment variable to determine the POSIX username calling the script, which is assumed to be the same as the MyTardis username.  To be more accurate, a MyTardis user can link multiple authentication methods e.g. username "jsmith" (using LDAP) and username "johns" (using localdb).  So if the "\_datafiledescriptord" script receives SUDO\_USER=jsmith, it looks up username="jsmith" in MyTardis's UserAuthentication model with auth\_method="cvl\_ldap".  Of course the auth\_method should be easily configurable, (e.g. as a command-line option to mytardisfs), but it is hard-coded for now.  Also the username mapping should be configurable, e.g. the POSIX username could be "jsmith", but the MyTardis username could be "jsmith@example.org".
 
-To allow regular users to run scripts like "_datafiledescriptord", we need to add a rule into /etc/sudoers.  *BE CAREFUL EDITING THIS FILE - USE visudo OR sudoedit TO ENSURE THAT YOU DON'T ACCIDENTALLY CREATE A SYNTAX ERROR WHICH COMPLETELY DISABLES YOUR SUDO ACCESS.*  Rules in /etc/sudoers are read in order from top to bottom, so if you add a 
+To allow regular users to run scripts like "\_datafiledescriptord", we need to add a rule into /etc/sudoers.  *BE CAREFUL EDITING THIS FILE - USE visudo OR sudoedit TO ENSURE THAT YOU DON'T ACCIDENTALLY CREATE A SYNTAX ERROR WHICH COMPLETELY DISABLES YOUR SUDO ACCESS.*  Rules in /etc/sudoers are read in order from top to bottom, so if you add a 
 rule down the bottom, then you can be sure that it won't be overwritten by any subsequent rules.
 ```
 ALL     ALL=(mytardis:mytardis) NOPASSWD: /usr/local/bin/_myapikey, /usr/local/bin/_datafiledescriptord, /usr/local/bin/_datasetdatafiles, /usr/local/bin/_countexpdatasets
@@ -34,3 +34,30 @@ Security/Privacy Concerns
 -------------------------
 
 You are probably accustomed to avoiding letting users log onto the server where you run your web application, and generally this is wise, because you don't want users wasting resources (disk, memory, CPU) which could compete with your web application, and you don't want malicious users to take advantage of a mistake the web administrator has made where permissions may be too open on sensitive data files or configuration files.  At present, this MyTardis SFTP solution must run on the MyTardis server - so that SFTP clients which request the first chunk of a MyTardis data file can get an immediate response.  You should check that your MyTardis file store is only readable by the "mytardis" user, not by any of your LDAP users.  Restricting access to the MyTardis application's directory (usually /opt/mytardis/current/) to the "mytardis" user may not work because the static content in /opt/mytardis/current/static/ needs to be accessible by the web server user (e.g. "nginx"), not just "mytardis".  Chrooting is one approach to keeping users away from parts of the filesystem they shouldn't be able to access, and it could work well with MyTardis SFTP if it were purely using MyTardis's RESTful API, but given that it currently uses Django as well, you would need to run mytardisftpd outside of the chroot before the user enters the chroot, but ensure that doing so doesn't allow the user to bypass the chroot, e.g. by pressing Contrl-C while the pre-chroot mytardisftpd script is running.
+
+Changes to TastyPie API
+-----------------------
+
+MyTardisFS needs to be able to filter datasets based on experiment ID.  To achieve this, the following changes were made to api.py:
+```
+diff --git a/tardis/tardis_portal/api.py b/tardis/tardis_portal/api.py
+index 58dcdd0..53eee08 100644
+--- a/tardis/tardis_portal/api.py
++++ b/tardis/tardis_portal/api.py
+@@ -517,6 +517,7 @@ class ExperimentResource(MyTardisModelResource):
+     class Meta(MyTardisModelResource.Meta):
+         queryset = Experiment.objects.all()
+         filtering = {
++            'id': ('exact', ),
+             'title': ('exact',),
+         }
+ 
+@@ -607,6 +608,7 @@ class DatasetResource(MyTardisModelResource):
+         queryset = Dataset.objects.all()
+         filtering = {
+             'id': ('exact', ),
++            'experiments': ALL_WITH_RELATIONS,
+             'description': ('exact', ),
+             'directory': ('exact', ),
+         }
+```
