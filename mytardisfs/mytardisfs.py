@@ -383,9 +383,7 @@ try:
 except:
     expdatasetcounts = dict()
 
-if int(num_exp_records_found) > 0:
-    max_exp_created_time = \
-        dateutil.parser.parse(exp_records_json['objects'][0]['created_time'])
+max_exp_created_time = datetime.fromtimestamp(0)
 for exp_record_json in exp_records_json['objects']:
     exp_dir_name = str(exp_record_json['id']) + "-" + \
         exp_record_json['title'].encode('ascii', 'ignore').replace(" ", "_")
@@ -458,7 +456,7 @@ class MyStat(fuse.Stat):
                 # A directory without subdirectories
                 # still has "." and ".."
                 self.st_nlink = 2
-            self.st_size = _default_directory_size
+            self.st_size = dir_entry.get_size_in_bytes()
         else:
             self.st_mode = stat.S_IFREG | stat.S_IRUSR
             self.st_nlink = 1
@@ -484,6 +482,7 @@ class MyFS(fuse.Fuse):
         try:
             return MyStat(FILES[path])
         except KeyError:
+            logger.debug("KeyError in getattr for path: " + str(path))
             return -errno.ENOENT
 
     def getdir(self, path):
@@ -543,9 +542,7 @@ class MyFS(fuse.Fuse):
 
                 # Doesn't check for deleted experiments,
                 # only adds to FILES dictionary.
-                if int(num_exp_records_found) > 0:
-                    max_exp_created_time = dateutil.parser \
-                        .parse(exp_records_json['objects'][0]['created_time'])
+                max_exp_created_time = datetime.fromtimestamp(0)
                 for exp_record_json in exp_records_json['objects']:
                     exp_dir_name = str(exp_record_json['id']) + "-" + \
                         (exp_record_json['title'].encode('ascii', 'ignore')
