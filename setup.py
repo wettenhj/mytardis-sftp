@@ -23,7 +23,9 @@ setup(name='mytardisfs',
               "mytardisftpd = mytardisfs.mytardisftpd:run",
           ],
       },
-      install_requires=['fuse-python', 'python-dateutil', 'requests',
+      #install_requires=['fuse-python==0.2.1', 'python-dateutil', 'requests',
+                        #'fdsend', 'ConfigParser'],
+      install_requires=['python-dateutil', 'requests',
                         'fdsend', 'ConfigParser'],
       zip_safe=False)
 
@@ -46,4 +48,10 @@ if 'install' in sys.argv:
             print "Installing /etc/mytardisfs.cnf"
             shutil.copy2(config_src_file, config_path)
             os.chmod(config_file_path, int('644', 8))
+    print ""
+    print "WARNING: The fuse-python package is not included in setup.py's\n" + \
+        "install_requires, because installing it automatically from PyPI\n" + \
+        "currently gives version 0.2-pre3, whereas MyTardisFS works best\n" + \
+        "with fuse-python 0.2.1, which can be installed on Ubuntu 12.04 with:\n\n" + \
+        "    sudo apt-get install python-fuse"
     print ""
