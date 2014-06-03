@@ -383,9 +383,7 @@ try:
 except:
     expdatasetcounts = dict()
 
-if int(num_exp_records_found) > 0:
-    max_exp_created_time = \
-        dateutil.parser.parse(exp_records_json['objects'][0]['created_time'])
+max_exp_created_time = datetime.fromtimestamp(0)
 for exp_record_json in exp_records_json['objects']:
     exp_dir_name = str(exp_record_json['id']) + "-" + \
         exp_record_json['title'].encode('ascii', 'ignore').replace(" ", "_")
@@ -543,9 +541,7 @@ class MyFS(fuse.Fuse):
 
                 # Doesn't check for deleted experiments,
                 # only adds to FILES dictionary.
-                if int(num_exp_records_found) > 0:
-                    max_exp_created_time = dateutil.parser \
-                        .parse(exp_records_json['objects'][0]['created_time'])
+                max_exp_created_time = datetime.fromtimestamp(0)
                 for exp_record_json in exp_records_json['objects']:
                     exp_dir_name = str(exp_record_json['id']) + "-" + \
                         (exp_record_json['title'].encode('ascii', 'ignore')
