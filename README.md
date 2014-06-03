@@ -2,17 +2,17 @@ mytardisfs
 ==========
 The scripts in this repository form a prototype for making MyTardis data available in a FUSE virtual filesystem, which can be exported via SFTP (and related methods such as RSYNC over SSH).  After installing with "sudo python setup.py install", these scripts are accessible currently from within /usr/local/bin/ on my MyTardis server.  The main script is mytardisfs, which uses Python-Fuse to set up a virtual filesystem.  The mytardisftpd script is an easy way to call mytardisfs - it automatically chooses a mountpoint, ~/MyTardis, calls mytardisfs, and waits for the FUSE filesystem to be ready, returning 0 on success, and 1 if it's not ready after 10 seconds.  
 
-Launching mytardis-sftp (a Python-Fuse process).
------------------------------------------------
+Launching mytardisfs/mytardisftpd automatically for SFTP/SSHFS/RSYNC users
+--------------------------------------------------------------------------
 At present, the scripts are designed to be run by an ordinary user (whose POSIX username from LDAP matches their MyTardis username).  For interactive SSH login, mytardisftpd can be run automatically by placing it in /etc/profile.  For SFTP login, /etc/ssh/sshd\_config can be modified to point to a custom sftp-subsystem script, e.g. /usr/local/lib/openssh/sftp-server, instead of the default /usr/lib/openssh/sftp-server executable, and this custom script can start up mytardisftpd before running /usr/local/lib/sftp-server.  For RSYNC over SSH, you can use --rsync-path="/usr/local/bin/mytardisftpd && /usr/bin/rsync" to ensure that mytardisfs is available for the rsync.  For logging in with SSH keys, you can put executable commands next to your public keys in ~/.ssh/authorized\_keys.  SCP does not use the sftp-subsystem, but it does use ~/.bashrc, which may source /etc/bash.bashrc, so you can try to use /etc/bash.bashrc to start mytardisftpd, or alternatively, you can just log in with SSH first, and start mytardisftpd in the background using nohup to ensure that the process will persist after you exit the login shell.
 
 LDAP
 ----
-This method of providing SFTP access depends on using an LDAP directory for authentication in MyTardis and configuring PAM and NSS to allow SSH/SFTP logins, using LDAP credentials.  This code has been run on Ubuntu 12.04.2 (Precise).  PAM and NSS were configured for LDAP, using these instructions: http://askubuntu.com/questions/127389/how-to-configure-ubuntu-as-an-ldap-client .  This means that the same credentials can be used to log into the MyTardis web interface and into the SFTP server.  
+mytardisfs assumes that POSIX usernames can be mapped to MyTardis usernames, given a MyTardis authentication provider (e.g. test_ldap), specified in /etc/mytardisfs.cnf.  This POSIX-to-MyTardis user mapping can be tested with MyTardis's 'localdb' authentication provider, but in practice, LDAP is the preferred way to grant both SFTP access (using a POSIX identity) and MyTardis access to users.  PAM and NSS can be configured on the MyTardis server to allow SSH/SFTP logins, using LDAP credentials.  This code has been run on Ubuntu 12.04.2 (Precise).  PAM and NSS were configured for LDAP, using these instructions: http://askubuntu.com/questions/127389/how-to-configure-ubuntu-as-an-ldap-client .  This means that the same credentials can be used to log into the MyTardis web interface and into the SFTP server.  
 
 How the Python-Fuse process accesses MyTardis
 ---------------------------------------------
-There are two different ways in which mytardis-sftp accesses MyTardis:
+There are two different ways in which mytardisfs accesses MyTardis:
 
 1. Using MyTardis's TastyPie RESTful API
 2. Using Django (with some "sudo -u mytardis" trickery)
