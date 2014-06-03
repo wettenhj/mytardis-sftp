@@ -16,6 +16,8 @@
 #      or: mytardisftpd
 # Unmount: fusermount -uz ~/MyTardis
 
+# See /etc/mytardisfs.cnf (installed by sudo python setup.py install)
+
 # Requires FUSE:
 #     sudo apt-get install fuse
 # FUSE devel libraries may be needed to build fuse-python:
@@ -28,30 +30,20 @@
 
 # The following Python packages should automatically be installed
 # by running "sudo python setup.py install" from the mytardisfs/ dir:
-#     fuse-python: sudo pip install fuse-python
-#     dateutil:    sudo pip install python-dateutil
-#     requests:    sudo pip install requests
+#     fuse-python:  sudo pip install fuse-python
+#     dateutil:     sudo pip install python-dateutil
+#     requests:     sudo pip install requests
+#     ConfigParser: sudo pip install ConfigParser
 
 # To Do: Make sure file/directory names are legal, e.g. they shouldn't
 # contain the '/' character. Grischa suggests replacing '/' with '-'.
 
 # To Do: nlink is not correct for dataset directories containing
-# subdirectories.
+# subdirectories (but not many datasets actually contain subdirectories
+# and most (if not all) file browsing clients will still work OK.
 
-# To Do: Remove hard-coding of things like "cvl_ldap" - the MyTardis
-# authentication method used to resolve the POSIX username and obtain
-# the API key.  This should probably be a command-line argument of
-# mtardisfs.
-
-# To Do: The following need to be accessible as a command-line options:
-# _experiments_list_cache_time_seconds = 30
-# _experiment_datasets_cache_time_seconds = 30
-# _dataset_datafiles_cache_time_seconds = 30
-# _mytardis_url = "https://mytardis.massive.org.au"
-# The latter is only used for RESTful API calls.  Currently, other code
-# in MyTardisFS requires it to run on the MyTardis server.
-# Also the MyTardis installation dir (e.g. /opt/mytardis/current)
-# and the use_api option for datafiles.
+# To Do: Provide a way to do simple user mapping, e.g. mapping a
+# POSIX username of jsmith to a MyTardis username of jsmith@example.org
 
 import fuse
 import stat
@@ -70,6 +62,7 @@ from datafiledescriptor import MyTardisDatafileDescriptor
 import dateutil.parser
 from datetime import datetime
 import getopt
+import ConfigParser
 from __init__ import __version__
 
 logger = logging.getLogger(__name__)
@@ -88,6 +81,65 @@ if len(sys.argv) < 2:
     print "Missing mount point"
     print "See `mytardisfs -h' for usage"
     sys.exit(1)
+
+MYTARDISFS_CNF_FILES = ['/etc/mytardisfs.cnf', '/usr/local/etc/mytardisfs.cnf',
+                        os.path.join(os.path.expanduser('~'),
+                                     '.mytardisfs.cnf')]
+
+logger.info("Looking for MyTardisFS config settings in:\n  " +
+            str(MYTARDISFS_CNF_FILES))
+mytardisfs_config = ConfigParser.SafeConfigParser(allow_no_value=True)
+for cnf_file in MYTARDISFS_CNF_FILES:
+    if os.path.exists(cnf_file):
+        with open(cnf_file, 'r') as cnf_file_object:
+            mytardisfs_config.readfp(cnf_file_object)
+
+# For now, everything in the config will go under one heading: [mytardisfs]
+_default_config_file_section = "mytardisfs"
+
+# Set some default values, which will be overwritten by
+# the settings in /etc/mytardisfs.cnf:
+_mytardis_install_dir = "/opt/mytardis/current"
+_mytardis_url = "http://localhost"
+_auth_provider = "localdb"
+_experiments_list_cache_time_seconds = 30
+_experiment_datasets_cache_time_seconds = 30
+_dataset_datafiles_cache_time_seconds = 30
+_default_directory_size = 4096
+_use_api_for_dataset_datafiles = False
+
+if mytardisfs_config.has_section(_default_config_file_section):
+    for key, val in mytardisfs_config.items(_default_config_file_section):
+        if key == 'mytardis_install_dir':
+            _mytardis_install_dir = val
+        if key == 'mytardis_url':
+            _mytardis_url = val
+        if key == 'auth_provider':
+            _auth_provider = val
+        if key == 'experiments_list_cache_time_seconds':
+            _experiments_list_cache_time_seconds = int(val)
+        if key == 'experiment_datasets_cache_time_seconds':
+            _experiment_datasets_cache_time_seconds = int(val)
+        if key == 'dataset_datafiles_cache_time_seconds':
+            _dataset_datafiles_cache_time_seconds = int(val)
+        if key == 'default_directory_size':
+            _default_directory_size = int(val)
+        if key == 'use_api_for_dataset_datafiles':
+            _use_api_for_dataset_datafiles = (val == 'True')
+
+logger.info("mytardis_install_dir: " + _mytardis_install_dir)
+logger.info("mytardis_url: " + _mytardis_url)
+logger.info("auth_provider: " + _auth_provider)
+logger.info("experiments_list_cache_time_seconds: " +
+            str(_experiments_list_cache_time_seconds))
+logger.info("experiment_datasets_cache_time_seconds: " +
+            str(_experiment_datasets_cache_time_seconds))
+logger.info("dataset_datafiles_cache_time_seconds: " +
+            str(_dataset_datafiles_cache_time_seconds))
+logger.info("default_directory_size: " +
+            str(_default_directory_size))
+logger.info("use_api_for_dataset_datafiles: " +
+            str(_use_api_for_dataset_datafiles))
 
 if sys.argv[1].startswith("-"):
     argv = sys.argv[1:]
@@ -212,7 +264,8 @@ if not os.path.exists(fuse_mount_dir):
     os.makedirs(fuse_mount_dir)
 
 mytardis_username = getpass.getuser()
-proc = subprocess.Popen(["sudo", "-n", "-u", "mytardis", "_myapikey"],
+proc = subprocess.Popen(["sudo", "-n", "-u", "mytardis", "_myapikey",
+                         _mytardis_install_dir, _auth_provider],
                         stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 stdout, stderr = proc.communicate()
 if proc.returncode != 0:
@@ -222,11 +275,14 @@ if proc.returncode != 0:
         "in:\n\nhttps://github.com/monash-merc/mytardisfs/" + \
         "blob/master/README.md\n\nfor configuring /etc/sudoers\n\n" + \
         "You might need to run:\n\n" + \
-        "  /opt/mytardis/current/bin/django backfill_api_keys\n\n" + \
+        "  " + os.path.join(_mytardis_install_dir, "bin", "django") + \
+        " backfill_api_keys\n\n" + \
         "as the 'mytardis' user to generate an API key for your " + \
         "MyTardis user account.\n"
     logger.error(message)
     sys.stderr.write(message)
+    sys.stderr.write("\n")
+    sys.stderr.write(stderr)
     sys.exit(1)
 myapikey_stdout = stdout.strip()
 mytardis_username = myapikey_stdout.split(' ')[1].split(':')[0]
@@ -238,15 +294,9 @@ _uid = proc.stdout.read().strip()
 proc = subprocess.Popen(["id", "-g"], stdout=subprocess.PIPE)
 _gid = proc.stdout.read().strip()
 
-_mytardis_url = "https://mytardis.massive.org.au"
 _headers = {'Authorization': 'ApiKey ' + mytardis_username + ":" +
             mytardis_apikey}
 
-_default_directory_size = 4096
-
-_experiments_list_cache_time_seconds = 30
-_experiment_datasets_cache_time_seconds = 30
-_dataset_datafiles_cache_time_seconds = 30
 LAST_QUERY_TIME = dict()
 LAST_QUERY_TIME['experiments'] = datetime.fromtimestamp(0)
 
@@ -320,7 +370,8 @@ logger.info(str(num_exp_records_found) +
             " experiment record(s) found for user " + mytardis_username)
 
 cmd = ['sudo', '-n', '-u', 'mytardis',
-       '/usr/local/bin/_countexpdatasets']
+       '/usr/local/bin/_countexpdatasets',
+       _mytardis_install_dir, _auth_provider]
 logger.info(str(cmd))
 proc = subprocess.Popen(cmd, stdout=subprocess.PIPE,
                         stderr=subprocess.PIPE)
@@ -477,7 +528,8 @@ class MyFS(fuse.Fuse):
                             mytardis_username)
 
                 cmd = ['sudo', '-n', '-u', 'mytardis',
-                       '/usr/local/bin/_countexpdatasets']
+                       '/usr/local/bin/_countexpdatasets',
+                       _mytardis_install_dir, _auth_provider]
                 logger.info(str(cmd))
                 proc = subprocess.Popen(cmd, stdout=subprocess.PIPE,
                                         stderr=subprocess.PIPE)
@@ -587,9 +639,9 @@ class MyFS(fuse.Fuse):
                 DATAFILE_FILE_OBJECTS[dataset_id] = dict()
                 DATAFILE_CLOSE_TIMERS[dataset_id] = dict()
 
-                use_api = False
+                _use_api_for_dataset_datafiles = False
 
-                if use_api:
+                if _use_api_for_dataset_datafiles:
                     url = _mytardis_url + \
                         "/api/v1/dataset_file/?format=json&limit=0&" + \
                         "dataset__id=" + str(dataset_id)
@@ -601,6 +653,7 @@ class MyFS(fuse.Fuse):
                 else:
                     cmd = ['sudo', '-n', '-u', 'mytardis',
                            '/usr/local/bin/_datasetdatafiles',
+                           _mytardis_install_dir, _auth_provider,
                            experiment_id, dataset_id]
                     logger.info(str(cmd))
                     proc = subprocess.Popen(cmd, stdout=subprocess.PIPE,
@@ -619,13 +672,13 @@ class MyFS(fuse.Fuse):
                             " datafile record(s) found for dataset ID " +
                             str(dataset_id))
 
-                if use_api:
+                if _use_api_for_dataset_datafiles:
                     datafile_dicts = datafile_records_json['objects']
 
                 for df in datafile_dicts:
                     # logger.debug("df = " + str(df))
                     datafile_id = df['id']
-                    if use_api:
+                    if _use_api_for_dataset_datafiles:
                         df_directory = df['directory'] \
                             .encode('ascii', 'ignore').strip('/')
                     else:
@@ -788,7 +841,8 @@ class MyFS(fuse.Fuse):
             DATAFILE_CLOSE_TIMERS[dataset_id][subdirectory][filename].start()
         else:
             mytardis_datafile_descriptor = MyTardisDatafileDescriptor. \
-                get_file_descriptor(experiment_id, datafile_id)
+                get_file_descriptor(_mytardis_install_dir, _auth_provider,
+                                    experiment_id, datafile_id)
             file_descriptor = None
             logger.debug("Message: " +
                          mytardis_datafile_descriptor.message)

@@ -12,7 +12,7 @@
 # only provide access to experiment IDs available to that MyTardis
 # username.  Currently the username is matched using the "cvl_ldap"
 # authentication scheme in our MyTardis deployment
-# (defined in /opt/mytardis/current/tardis/settings.py)
+# (defined in [mytardis_install_dir]/tardis/settings.py)
 
 import os
 import sys
@@ -22,12 +22,21 @@ import traceback
 
 def run():
     if getpass.getuser() != "mytardis" or "SUDO_USER" not in os.environ:
-        print "Usage: sudo -u mytardis _countexpdatasets"
+        print "Usage: sudo -u mytardis _countexpdatasets" + \
+            "mytardis_install_dir auth_provider"
         sys.exit(1)
 
-    sys.path.append("/opt/mytardis/current/")
-    for egg in os.listdir("/opt/mytardis/current/eggs/"):
-        sys.path.append("/opt/mytardis/current/eggs/" + egg)
+    if len(sys.argv) < 3:
+        print "Usage: sudo -u mytardis _countexpdatasets" + \
+            "mytardis_install_dir auth_provider"
+        sys.exit(1)
+
+    _mytardis_install_dir = sys.argv[1].strip('"')
+    _auth_provider = sys.argv[2]
+
+    sys.path.append(_mytardis_install_dir)
+    for egg in os.listdir(os.path.join(_mytardis_install_dir, "eggs")):
+        sys.path.append(os.path.join(_mytardis_install_dir, "eggs", egg))
     from django.core.management import setup_environ
     from tardis import settings
     setup_environ(settings)
@@ -44,7 +53,7 @@ def run():
     try:
         userAuth = UserAuthentication.objects \
             .get(username=os.environ['SUDO_USER'],
-                 authenticationMethod='cvl_ldap')
+                 authenticationMethod=_auth_provider)
         mytardis_user = userAuth.userProfile.user
         # logger.debug("Primary MyTardis username: " + mytardis_user.username)
         # print "Primary MyTardis username: " + mytardis_user.username
