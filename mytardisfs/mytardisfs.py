@@ -456,7 +456,7 @@ class MyStat(fuse.Stat):
                 # A directory without subdirectories
                 # still has "." and ".."
                 self.st_nlink = 2
-            self.st_size = _default_directory_size
+            self.st_size = dir_entry.get_size_in_bytes()
         else:
             self.st_mode = stat.S_IFREG | stat.S_IRUSR
             self.st_nlink = 1
@@ -482,6 +482,7 @@ class MyFS(fuse.Fuse):
         try:
             return MyStat(FILES[path])
         except KeyError:
+            logger.debug("KeyError in getattr for path: " + str(path))
             return -errno.ENOENT
 
     def getdir(self, path):
