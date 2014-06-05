@@ -25,7 +25,7 @@ setup(name='mytardisfs',
       },
       #install_requires=['fuse-python==0.2.1', 'python-dateutil', 'requests',
                         #'fdsend', 'ConfigParser'],
-      install_requires=['python-dateutil', 'requests',
+      install_requires=['python-dateutil', 'requests>=2.3.0',
                         'fdsend', 'ConfigParser'],
       zip_safe=False)
 
