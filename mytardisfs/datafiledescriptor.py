@@ -46,14 +46,15 @@ class MyTardisDatafileDescriptor:
         return MyTardisDatafileDescriptor(message, file_descriptor)
 
 if __name__ == "__main__":
-    experiment_id = "73"
+    experiment_id = "2151"
     print "Experiment ID: " + experiment_id
-    # datafile_id = "1463"
-    datafile_id = "6680"
+    datafile_id = "14751"
     print "Datafile ID: " + datafile_id
 
     mytardis_datafile_descriptor = \
-        MyTardisDatafileDescriptor.get_file_descriptor(experiment_id,
+        MyTardisDatafileDescriptor.get_file_descriptor("/opt/mytardis/develop",
+                                                       "ldap",
+                                                       experiment_id,
                                                        datafile_id)
     if mytardis_datafile_descriptor.file_descriptor is not None:
         print "Message: " + mytardis_datafile_descriptor.message
@@ -64,3 +65,5 @@ if __name__ == "__main__":
         # Only show first 1024 bytes for now:
         print "File content: " + file_handle.read(1024)
         file_handle.close()
+    else:
+        print "mytardis_datafile_descriptor.file_descriptor is None."
