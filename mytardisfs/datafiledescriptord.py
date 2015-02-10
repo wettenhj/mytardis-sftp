@@ -58,7 +58,7 @@ def run():
     from tardis import settings
     setup_environ(settings)
 
-    from tardis.tardis_portal.models import Dataset_File, Experiment
+    from tardis.tardis_portal.models import DataFile, Experiment
     from tardis.tardis_portal.models import UserAuthentication
 
     found_user = False
@@ -88,16 +88,15 @@ def run():
                 if df.id == _datafile_id:
                     found_datafile_in_experiment = True
                     break
-        df = Dataset_File.objects.get(id=_datafile_id)
-        r = df.get_preferred_replica()
-        filepath = r.get_absolute_filepath()
+        df = DataFile.objects.get(id=_datafile_id)
+        fileobject = df.file_object
 
         # The following line blocks, waiting for client to start up
         # and send its request:
         file_descriptor_request = conn.recv(1024)
         if staff_or_superuser or (found_datafile_in_experiment and
                                   (exp_public or exp_owned_or_shared)):
-            fds = [file(filepath, 'rb')]
+            fds = [fileobject]
             message = "Success"
         elif not found_datafile_in_experiment:
             fds = []
@@ -113,8 +112,11 @@ def run():
                 str(sys.argv)
         fdsend.sendfds(conn, message, fds=fds)
     except ObjectDoesNotExist:
+        # FIXME: It could actually be the datafile which
+        # is not found.
         message = "User " + os.environ['SUDO_USER'] + \
-            " was not found in MyTardis."
+            " was not found in MyTardis " \
+            "for authentication method " + _auth_provider
         fdsend.sendfds(conn, message, fds=[])
     except:
         message = traceback.format_exc()
