@@ -20,17 +20,13 @@
 
 # Requires FUSE:
 #     sudo apt-get install fuse
-# FUSE devel libraries may be needed to build fuse-python:
-#     sudo apt-get install libfuse-dev
-# pkg-config may be needed to build fuse-python:
-#     sudo apt-get install pkg-config
-
+#     sudo apt-get install python-fuse
+#
 # pip and setuptools may be needed to install Python packages:
 #     sudo apt-get install python-pip
 
 # The following Python packages should automatically be installed
 # by running "sudo python setup.py install" from the mytardisfs/ dir:
-#     fuse-python:  sudo pip install fuse-python
 #     dateutil:     sudo pip install python-dateutil
 #     requests:     sudo pip install requests
 #     ConfigParser: sudo pip install ConfigParser
