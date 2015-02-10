@@ -35,29 +35,3 @@ Security/Privacy Concerns
 
 You are probably accustomed to avoiding letting users log onto the server where you run your web application, and generally this is wise, because you don't want users wasting resources (disk, memory, CPU) which could compete with your web application, and you don't want malicious users to take advantage of a mistake the web administrator has made where permissions may be too open on sensitive data files or configuration files.  At present, this MyTardis SFTP solution must run on the MyTardis server - so that SFTP clients which request the first chunk of a MyTardis data file can get an immediate response.  You should check that your MyTardis file store is only readable by the "mytardis" user, not by any of your LDAP users.  Restricting access to the MyTardis application's directory (usually /opt/mytardis/current/) to the "mytardis" user may not work because the static content in /opt/mytardis/current/static/ needs to be accessible by the web server user (e.g. "nginx"), not just "mytardis".  Chrooting is one approach to keeping users away from parts of the filesystem they shouldn't be able to access, and it could work well with MyTardis SFTP if it were purely using MyTardis's RESTful API, but given that it currently uses Django as well, you would need to run mytardisftpd outside of the chroot before the user enters the chroot, but ensure that doing so doesn't allow the user to bypass the chroot, e.g. by pressing Contrl-C while the pre-chroot mytardisftpd script is running.
 
-Changes to TastyPie API
------------------------
-
-MyTardisFS needs to be able to filter datasets based on experiment ID.  To achieve this, the following changes were made to api.py:
-```
-diff --git a/tardis/tardis_portal/api.py b/tardis/tardis_portal/api.py
-index 58dcdd0..53eee08 100644
---- a/tardis/tardis_portal/api.py
-+++ b/tardis/tardis_portal/api.py
-@@ -517,6 +517,7 @@ class ExperimentResource(MyTardisModelResource):
-     class Meta(MyTardisModelResource.Meta):
-         queryset = Experiment.objects.all()
-         filtering = {
-+            'id': ('exact', ),
-             'title': ('exact',),
-         }
- 
-@@ -607,6 +608,7 @@ class DatasetResource(MyTardisModelResource):
-         queryset = Dataset.objects.all()
-         filtering = {
-             'id': ('exact', ),
-+            'experiments': ALL_WITH_RELATIONS,
-             'description': ('exact', ),
-             'directory': ('exact', ),
-         }
-```
