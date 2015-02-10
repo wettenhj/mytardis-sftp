@@ -43,7 +43,7 @@ def run():
     from tardis import settings
     setup_environ(settings)
 
-    from tardis.tardis_portal.models import Dataset, Dataset_File, Experiment
+    from tardis.tardis_portal.models import Dataset, DataFile, Experiment
     from tardis.tardis_portal.models import UserAuthentication
     from django.core.exceptions import ObjectDoesNotExist
 
@@ -80,7 +80,7 @@ def run():
                     break
         if staff_or_superuser or (found_dataset_in_experiment and
                                   (exp_public or exp_owned_or_shared)):
-            dfs = Dataset_File.objects.filter(dataset__id=_dataset_id)
+            dfs = DataFile.objects.filter(dataset__id=_dataset_id)
             df_list = []
             for df in dfs:
                 df_fields = dict(id=df.id, directory=df.directory,
